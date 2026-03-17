@@ -184,9 +184,11 @@ try {
 
   console.log('Launching bot...')
   bot.launch()
-    .then(() => {
+    .then(async () => {
       console.log('✅ Bot launched successfully')
-      checkScheduledMessages(bot)
+      console.log('[Scheduler] Initial check on bot start...')
+      await checkScheduledMessages(bot)
+      console.log('[Scheduler] Initial check completed')
     })
     .catch(err => console.error('Bot launch error:', err))
 

@@ -1,3 +1,4 @@
+import moment from 'moment-timezone'
 import { getMessages, getClubMembers, clearSendFlag } from '../integrations/fillout.js'
 
 const scheduledTimeouts = []
@@ -91,13 +92,13 @@ export async function checkScheduledMessages(bot) {
 }
 
 function scheduleDailyAt18(bot) {
-  const now  = new Date()
-  const next = new Date()
-  next.setHours(18, 0, 0, 0)
-  if (next <= now) next.setDate(next.getDate() + 1)
+  const now    = moment.tz('Asia/Jerusalem')
+  const next18 = moment.tz('Asia/Jerusalem').hour(18).minute(0).second(0).millisecond(0)
+  if (!next18.isAfter(now)) next18.add(1, 'day')
 
-  const delay   = next - now
+  const delay   = next18.valueOf() - now.valueOf()
   const minutes = Math.round(delay / 60_000)
+  console.log(`[Scheduler] Current time (Jerusalem): ${now.format('HH:mm')}`)
   console.log(`[Scheduler] Next daily check at 18:00 — in ${minutes} min`)
 
   setTimeout(() => {
