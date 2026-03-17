@@ -13,7 +13,7 @@ async function sendBroadcast(bot, msg) {
     return
   }
 
-  console.log(`[Scheduler] Sending broadcast ID: ${id} | tariff: "${tariff ?? 'all'}"`)
+  console.log(`[Scheduler] Sending broadcast ID: ${id} | tariff: "${tariff ?? 'none'}"`)
 
   try {
     await clearSendFlag(id)
@@ -29,12 +29,20 @@ async function sendBroadcast(bot, msg) {
     return
   }
 
+  const broadcastAll = !tariff || tariff === 'ВСЕ' || tariff === 'КЛУБ'
+
+  if (broadcastAll) {
+    console.log('[Scheduler] Broadcasting to ALL members')
+  } else {
+    console.log(`[Scheduler] Broadcasting to tariff: ${tariff}`)
+  }
+
   const targets = allMembers.filter(m => {
     const tgId       = m.fields['telegram_id']
     const userTariff = m.fields['Тариф']
     if (!tgId) return false
-    if (tariff) return userTariff === tariff
-    return true
+    if (broadcastAll) return true
+    return userTariff === tariff
   })
 
   let sent = 0
@@ -47,7 +55,7 @@ async function sendBroadcast(bot, msg) {
     }
   }
 
-  console.log('[Scheduler] Message sent, recipients:', sent)
+  console.log(`[Scheduler] Sent to ${sent} recipients`)
 }
 
 export async function checkScheduledMessages(bot) {
