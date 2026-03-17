@@ -185,6 +185,7 @@ try {
   console.log('Launching bot...');
   (async () => {
     try {
+      console.log('=== BEFORE BOT LAUNCH ===')
       await bot.launch()
       console.log('=== BOT LAUNCHED ===')
 
