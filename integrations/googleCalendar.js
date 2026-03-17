@@ -1,14 +1,19 @@
 import { google } from 'googleapis'
-import { createRequire } from 'module'
 
-const require = createRequire(import.meta.url)
-const serviceAccount = require('../gmd-bot-calendar-d9d1c4b4a6d0.json')
+if (!process.env.GOOGLE_CALENDAR_CREDENTIALS) {
+  throw new Error('GOOGLE_CALENDAR_CREDENTIALS not set in environment')
+}
 
-const CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID || 'primary'
+if (!process.env.GOOGLE_CALENDAR_ID) {
+  throw new Error('GOOGLE_CALENDAR_ID not set in environment')
+}
+
+const credentials = JSON.parse(process.env.GOOGLE_CALENDAR_CREDENTIALS)
+const CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID
 
 function getCalendarClient() {
   const auth = new google.auth.GoogleAuth({
-    credentials: serviceAccount,
+    credentials,
     scopes: ['https://www.googleapis.com/auth/calendar'],
   })
   return google.calendar({ version: 'v3', auth })
@@ -29,5 +34,5 @@ export async function createTestEvent() {
     },
   })
 
-  return { eventId: res.data.id, htmlLink: res.data.htmlLink }
+  return { id: res.data.id, htmlLink: res.data.htmlLink }
 }
