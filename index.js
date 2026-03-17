@@ -153,12 +153,21 @@ try {
   // })
 
   bot.command('test_calendar', async (ctx) => {
-    if (ctx.from.id !== 867023416) return
+    console.log('[TEST] test_calendar command received from:', ctx.from.id)
+
+    if (ctx.from.id !== 867023416) {
+      return await ctx.reply('❌ Нет доступа')
+    }
+
     try {
+      await ctx.reply('⏳ Проверяю Calendar API...')
+
       const { createTestEvent } = await import('./integrations/googleCalendar.js')
       const result = await createTestEvent()
-      await ctx.reply('✅ Календарь работает! Event ID: ' + result.eventId)
+
+      await ctx.reply(`✅ Календарь работает!\n\nEvent ID: ${result.eventId}\nLink: ${result.htmlLink}`)
     } catch (err) {
+      console.error('[TEST] Calendar error:', err)
       await ctx.reply('❌ Ошибка: ' + err.message)
     }
   })
