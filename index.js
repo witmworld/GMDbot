@@ -210,23 +210,25 @@ try {
     await ctx.reply(msg)
   })
 
+  // Webhook path — регистрируем СИНХРОННО до app.listen()
+  const WEBHOOK_DOMAIN = process.env.WEBHOOK_DOMAIN || 'https://gmd-bot-production-9d5b.up.railway.app'
+  const webhookPath = '/webhook'
+  app.use(bot.webhookCallback(webhookPath))
+  console.log('[Webhook] Callback registered for path:', webhookPath)
+
+  // Async init: scheduler + setWebhook
   ;(async () => {
     try {
       console.log('=== BEFORE BOT LAUNCH ===')
 
-      // Сначала scheduler — до launch, который повисает в webhook режиме
       console.log('[Init] Starting scheduler and initial check...')
       await checkScheduledMessages(bot)
       console.log('[Init] Initial check completed')
       startScheduler(bot)
       console.log('[Init] Daily scheduler started')
 
-      // Настройка webhook
-      const WEBHOOK_DOMAIN = process.env.WEBHOOK_DOMAIN || 'https://gmd-bot-production-9d5b.up.railway.app'
-      const webhookPath = '/webhook'
       console.log('[Webhook] Setting webhook to:', WEBHOOK_DOMAIN + webhookPath)
       await bot.telegram.setWebhook(WEBHOOK_DOMAIN + webhookPath)
-      app.use(bot.webhookCallback(webhookPath))
       console.log('🤖 Где мои деньги · Клуб — бот запущен (webhook mode)')
 
       try {
