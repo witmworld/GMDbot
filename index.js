@@ -217,9 +217,17 @@ try {
       await bot.launch()
       console.log('🤖 Где мои деньги · Клуб — бот запущен')
 
-      const webhookInfo = await bot.telegram.getWebhookInfo()
-      console.log('[Webhook] URL:', webhookInfo.url)
-      console.log('[Webhook] Pending updates:', webhookInfo.pending_update_count)
+      try {
+        const webhookInfo = await bot.telegram.getWebhookInfo()
+        console.log('[Webhook] ===== INFO =====')
+        console.log('[Webhook] URL:', webhookInfo.url)
+        console.log('[Webhook] Has custom certificate:', webhookInfo.has_custom_certificate)
+        console.log('[Webhook] Pending updates:', webhookInfo.pending_update_count)
+        console.log('[Webhook] Last error:', webhookInfo.last_error_message || 'none')
+        console.log('[Webhook] Last error date:', webhookInfo.last_error_date || 'none')
+      } catch (err) {
+        console.error('[Webhook] Error getting info:', err.message)
+      }
     } catch (err) {
       console.error('Bot launch error:', err)
     }
