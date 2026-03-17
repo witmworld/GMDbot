@@ -161,21 +161,19 @@ try {
   // })
 
   bot.command('test_calendar', async (ctx) => {
-    console.log('[TEST] test_calendar command received from:', ctx.from.id)
+    console.log('[TEST] ===== COMMAND RECEIVED =====')
+    console.log('[TEST] From user:', ctx.from.id)
 
     if (ctx.from.id !== 867023416) {
       return await ctx.reply('❌ Нет доступа')
     }
 
+    await ctx.reply('⏳ Проверяю Calendar API...')
+
     try {
-      await ctx.reply('⏳ Проверяю Calendar API...')
-
-      const { createTestEvent } = await import('./integrations/googleCalendar.js')
-      const result = await createTestEvent()
-
-      await ctx.reply(`✅ Календарь работает!\n\nEvent ID: ${result.eventId}\nLink: ${result.htmlLink}`)
+      const result = await ctx.telegram.sendMessage(ctx.chat.id, '✅ Тестовое сообщение')
+      await ctx.reply('✅ Базовая отправка работает! Message ID: ' + result.message_id)
     } catch (err) {
-      console.error('[TEST] Calendar error:', err)
       await ctx.reply('❌ Ошибка: ' + err.message)
     }
   })
