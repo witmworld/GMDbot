@@ -213,9 +213,13 @@ try {
       startScheduler(bot)
       console.log('[Init] Daily scheduler started')
 
-      // Потом launch (он повиснет на webhook сервере, это ОК)
-      await bot.launch()
-      console.log('🤖 Где мои деньги · Клуб — бот запущен')
+      // Настройка webhook
+      const WEBHOOK_DOMAIN = process.env.WEBHOOK_DOMAIN || 'https://gmd-bot-production-9d5b.up.railway.app'
+      const webhookPath = '/webhook'
+      console.log('[Webhook] Setting webhook to:', WEBHOOK_DOMAIN + webhookPath)
+      await bot.telegram.setWebhook(WEBHOOK_DOMAIN + webhookPath)
+      app.use(bot.webhookCallback(webhookPath))
+      console.log('🤖 Где мои деньги · Клуб — бот запущен (webhook mode)')
 
       try {
         const webhookInfo = await bot.telegram.getWebhookInfo()
