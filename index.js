@@ -12,6 +12,7 @@ import { aiScene } from './scenes/ai.scene.js'
 import { documentsScene } from './scenes/documents.scene.js'
 import { accessScene } from './scenes/access.scene.js'
 import { adminReceiptsScene } from './scenes/admin-receipts.scene.js'
+import { adminCalendarScene } from './scenes/admin-calendar.scene.js'
 import { menuScene } from './scenes/menu.scene.js'
 import { subscribeScene } from './scenes/subscribe.scene.js'
 import { scanGroupMembers } from './utils/group-scanner.js'
@@ -37,6 +38,7 @@ console.log('Loaded scene: AI_HELP')
 console.log('Loaded scene: DOCUMENTS')
 console.log('Loaded scene: ACCESS')
 console.log('Loaded scene: ADMIN_RECEIPTS')
+console.log('Loaded scene: ADMIN_CALENDAR')
 console.log('Loaded scene: MENU')
 console.log('Loaded scene: SUBSCRIBE')
 
@@ -74,6 +76,11 @@ try {
     }
   })
 
+  bot.command('admin_calendar', (ctx) => {
+    if (ctx.from.id !== 867023416) return
+    return ctx.scene.enter('ADMIN_CALENDAR')
+  })
+
   console.log('Registering scenes...')
   const stage = new Scenes.Stage([
     startScene,
@@ -87,6 +94,7 @@ try {
     documentsScene,
     accessScene,
     adminReceiptsScene,
+    adminCalendarScene,
     menuScene,
     subscribeScene
   ])
@@ -159,6 +167,11 @@ try {
   })
 
   bot.use(stage.middleware())
+
+  bot.hears('Админ Календарь', (ctx) => {
+    if (ctx.from.id !== 867023416) return
+    return ctx.scene.enter('ADMIN_CALENDAR')
+  })
 
   bot.start(async (ctx) => {
     ctx.session = {}

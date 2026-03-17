@@ -19,6 +19,47 @@ function getCalendarClient() {
   return google.calendar({ version: 'v3', auth })
 }
 
+export async function createCalendarEvent(event) {
+  const calendar = getCalendarClient()
+
+  const dateRaw = (event.date || '').trim()
+  const timeRaw = (event.time || '00:00').trim()
+
+  // Normalise DD.MM.YYYY → YYYY-MM-DD
+  let iso = dateRaw
+  if (/^\d{2}\.\d{2}\.\d{4}$/.test(dateRaw)) {
+    const [d, m, y] = dateRaw.split('.')
+    iso = `${y}-${m}-${d}`
+  }
+
+  const start = new Date(`${iso}T${timeRaw}:00`)
+  let durationMs = 60 * 60 * 1000
+  if (event.duration) {
+    const h = event.duration.match(/(\d+(?:\.\d+)?)\s*(?:час|hour|ч)/i)
+    const m = event.duration.match(/(\d+)\s*(?:мин|min)/i)
+    if (h) durationMs = parseFloat(h[1]) * 60 * 60 * 1000
+    else if (m) durationMs = parseInt(m[1]) * 60 * 1000
+  }
+  const end = new Date(start.getTime() + durationMs)
+
+  const description = [
+    event.description,
+    event.link ? `Ссылка: ${event.link}` : '',
+  ].filter(Boolean).join('\n')
+
+  const res = await calendar.events.insert({
+    calendarId: CALENDAR_ID,
+    requestBody: {
+      summary:     event.title,
+      description,
+      start: { dateTime: start.toISOString() },
+      end:   { dateTime: end.toISOString() },
+    },
+  })
+
+  return { id: res.data.id, htmlLink: res.data.htmlLink }
+}
+
 export async function createTestEvent() {
   const calendar = getCalendarClient()
   const now      = new Date()
