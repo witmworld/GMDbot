@@ -9,7 +9,7 @@ const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
 export const adminCalendarScene = new Scenes.BaseScene('ADMIN_CALENDAR')
 
-// ─── Enter ────────────────────────────────────────────────────────────────────
+// ─── Step 1: Enter — ask for schedule text ────────────────────────────────────
 
 adminCalendarScene.enter(async (ctx) => {
   if (ctx.from.id !== ADMIN_ID) {
@@ -40,14 +40,40 @@ adminCalendarScene.on('callback_query', async (ctx) => {
     return ctx.scene.leave()
   }
 
+  // Step 2 → confirm preview: ask audience
   if (data === 'cal:confirm') {
-    const events = ctx.session.adminCalEvents
-    if (!events?.length) {
+    if (!ctx.session.adminCalEvents?.length) {
       await ctx.reply('❌ Нет событий для создания.')
       return ctx.scene.leave()
     }
+    ctx.session.adminCalStep = 3
+    await ctx.reply(
+      '👥 *Кому разослать события?*',
+      {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard([
+          [
+            Markup.button.callback('📢 КЛУБ (все участники)', 'cal:audience:club'),
+            Markup.button.callback('🧪 ТЕСТ', 'cal:audience:test'),
+          ],
+          [Markup.button.callback('❌ Отменить', 'cal:cancel')],
+        ]),
+      }
+    )
+    return
+  }
 
-    await ctx.reply('⏳ Создаю события в Google Calendar и отправляю рассылку...')
+  // Step 3 → audience chosen: create events + broadcast
+  if (data === 'cal:audience:club' || data === 'cal:audience:test') {
+    const events = ctx.session.adminCalEvents
+    if (!events?.length) {
+      await ctx.reply('❌ Нет событий.')
+      return ctx.scene.leave()
+    }
+
+    const audience = data === 'cal:audience:club' ? 'club' : 'test'
+    const label    = audience === 'club' ? 'КЛУБ (все)' : 'ТЕСТ'
+    await ctx.reply(`⏳ Создаю события и рассылаю для *${label}*...`, { parse_mode: 'Markdown' })
 
     let members
     try {
@@ -57,48 +83,54 @@ adminCalendarScene.on('callback_query', async (ctx) => {
       return ctx.scene.leave()
     }
 
+    const targets = members.filter(m => {
+      const tgId   = m.fields['telegram_id']
+      const tariff = m.fields['Тариф']
+      if (!tgId) return false
+      if (audience === 'club') return true
+      return tariff === 'ТЕСТ'
+    })
+
+    console.log(`[AdminCal] Audience: ${label}, targets: ${targets.length}`)
+
     let createdCount = 0
     let sentCount    = 0
 
     for (const event of events) {
       // Create in Google Calendar
-      let htmlLink = null
       try {
         const created = await createCalendarEvent(event)
-        htmlLink = created.htmlLink
+        console.log('[AdminCal] Created event:', event.title, created.htmlLink)
         createdCount++
-        console.log('[AdminCal] Created event:', event.title, htmlLink)
       } catch (e) {
         console.error('[AdminCal] createCalendarEvent failed:', e.message)
       }
 
-      // Filter members by tariff
-      const eventTariffs = event.tariffs?.filter(t => t && t !== 'ВСЕ')
-      const targets = members.filter(m => {
-        const tgId = m.fields['telegram_id']
-        if (!tgId) return false
-        if (!eventTariffs?.length) return true
-        return eventTariffs.includes(m.fields['Тариф'])
-      })
+      // Build calendar links
+      const googleLink  = buildGoogleLink(event)
+      const outlookLink = buildOutlookLink(event)
 
-      // Build message
-      const addToCalLink = buildAddToCalLink(event)
-      let msg = `📅 *${escMd(event.title)}*\n`
-      if (event.date || event.time) {
-        msg += `🕐 ${event.date || ''} ${event.time || ''}`.trim()
-        if (event.duration) msg += ` _(${event.duration})_`
-        msg += '\n'
-      }
-      if (event.description) msg += `\n${escMd(event.description)}\n`
-      if (event.link)        msg += `\n🔗 [Ссылка на встречу](${event.link})\n`
-      msg += `\n[📆 Добавить в Google Calendar](${addToCalLink})`
+      // Build message text
+      let msg = ''
+      if (event.date || event.time) msg += `📅 ${event.date || ''} ${event.time || ''}`.trim() + '\n'
+      msg += `*${event.title}*`
+      if (event.description) msg += `\n\n${event.description}`
+      if (event.link)        msg += `\n\n🔗 Zoom: ${event.link}`
+      msg += '\n\n📆 Добавить в календарь:'
+
+      const calButtons = Markup.inlineKeyboard([
+        [
+          Markup.button.url('Google', googleLink),
+          Markup.button.url('Outlook', outlookLink),
+        ],
+      ])
 
       for (const member of targets) {
         try {
           await ctx.telegram.sendMessage(
             String(member.fields['telegram_id']),
             msg,
-            { parse_mode: 'Markdown', disable_web_page_preview: false }
+            { parse_mode: 'Markdown', ...calButtons }
           )
           sentCount++
         } catch (e) {
@@ -108,13 +140,13 @@ adminCalendarScene.on('callback_query', async (ctx) => {
     }
 
     await ctx.reply(
-      `✅ Готово!\n\n📅 Создано событий: ${createdCount}/${events.length}\n👥 Сообщений отправлено: ${sentCount}`
+      `✅ Готово!\n\n📅 Создано событий: ${createdCount}/${events.length}\n👥 Отправлено: ${sentCount} из ${targets.length} участников`
     )
     return ctx.scene.leave()
   }
 })
 
-// ─── Text (step 1: receive schedule) ─────────────────────────────────────────
+// ─── Step 1: receive schedule text ───────────────────────────────────────────
 
 adminCalendarScene.on('text', async (ctx) => {
   if (ctx.from.id !== ADMIN_ID) return ctx.scene.leave()
@@ -142,10 +174,10 @@ adminCalendarScene.on('text', async (ctx) => {
   let preview = `📋 *Найдено событий: ${events.length}*\n\n`
   events.forEach((e, i) => {
     preview += `*${i + 1}. ${escMd(e.title)}*\n`
-    if (e.date || e.time) preview += `🕐 ${e.date || ''} ${e.time || ''}`.trim() + '\n'
+    if (e.date || e.time) preview += `📅 ${e.date || ''} ${e.time || ''}`.trim() + '\n'
     if (e.duration)       preview += `⏱ ${e.duration}\n`
     if (e.description)    preview += `${escMd(e.description)}\n`
-    if (e.tariffs?.length) preview += `👥 Тарифы: ${e.tariffs.join(', ')}\n`
+    if (e.link)           preview += `🔗 ${escMd(e.link)}\n`
     preview += '\n'
   })
 
@@ -153,7 +185,7 @@ adminCalendarScene.on('text', async (ctx) => {
     parse_mode: 'Markdown',
     ...Markup.inlineKeyboard([
       [
-        Markup.button.callback('✅ Создать и разослать', 'cal:confirm'),
+        Markup.button.callback('✅ Создать', 'cal:confirm'),
         Markup.button.callback('❌ Отменить', 'cal:cancel'),
       ],
     ]),
@@ -171,13 +203,12 @@ async function parseScheduleWithGPT(text) {
         content: `Ты парсер расписания. Извлеки все события из текста и верни ТОЛЬКО валидный JSON массив.
 Формат каждого события:
 {
-  "date": "YYYY-MM-DD или DD.MM.YYYY (если есть)",
-  "time": "HH:MM (если есть)",
-  "duration": "например 1.5 часа или 90 минут (если указано)",
+  "date": "DD.MM.YYYY (если есть, иначе пустая строка)",
+  "time": "HH:MM (если есть, иначе пустая строка)",
+  "duration": "например 1.5 часа или 90 минут (если указано, иначе пустая строка)",
   "title": "название события",
   "description": "описание (если есть, иначе пустая строка)",
-  "link": "ссылка на встречу (если есть, иначе пустая строка)",
-  "tariffs": ["ВСЕ"]
+  "link": "ссылка на встречу (если есть, иначе пустая строка)"
 }
 Верни ТОЛЬКО JSON массив, без markdown, без пояснений.`,
       },
@@ -191,45 +222,53 @@ async function parseScheduleWithGPT(text) {
   return JSON.parse(cleaned)
 }
 
-function buildAddToCalLink(event) {
-  let startStr = ''
-  let endStr   = ''
+function parseDatetime(event) {
+  const dateRaw = (event.date || '').trim()
+  const timeRaw = (event.time || '00:00').trim()
 
-  try {
-    const dateRaw = (event.date || '').trim()
-    const timeRaw = (event.time || '00:00').trim()
-
-    let iso = dateRaw
-    if (/^\d{2}\.\d{2}\.\d{4}$/.test(dateRaw)) {
-      const [d, m, y] = dateRaw.split('.')
-      iso = `${y}-${m}-${d}`
-    }
-
-    const start = new Date(`${iso}T${timeRaw}:00`)
-    if (isNaN(start.getTime())) throw new Error('invalid date')
-
-    let durationMs = 60 * 60 * 1000
-    if (event.duration) {
-      const h = event.duration.match(/(\d+(?:\.\d+)?)\s*(?:час|hour|ч)/i)
-      const m = event.duration.match(/(\d+)\s*(?:мин|min)/i)
-      if (h) durationMs = parseFloat(h[1]) * 60 * 60 * 1000
-      else if (m) durationMs = parseInt(m[1]) * 60 * 1000
-    }
-
-    const end = new Date(start.getTime() + durationMs)
-    const fmt = (d) => d.toISOString().replace(/[-:.]/g, '').slice(0, 15)
-    startStr = fmt(start)
-    endStr   = fmt(end)
-  } catch {
-    // no dates — link still works without them
+  let iso = dateRaw
+  if (/^\d{2}\.\d{2}\.\d{4}$/.test(dateRaw)) {
+    const [d, m, y] = dateRaw.split('.')
+    iso = `${y}-${m}-${d}`
   }
 
-  const params = new URLSearchParams({ action: 'TEMPLATE', text: event.title || '' })
-  if (startStr && endStr) params.set('dates', `${startStr}/${endStr}`)
-  if (event.description)  params.set('details', event.description)
-  if (event.link)         params.set('location', event.link)
+  const start = new Date(`${iso}T${timeRaw}:00`)
+  if (isNaN(start.getTime())) return null
 
+  let durationMs = 60 * 60 * 1000
+  if (event.duration) {
+    const h = event.duration.match(/(\d+(?:\.\d+)?)\s*(?:час|hour|ч)/i)
+    const m = event.duration.match(/(\d+)\s*(?:мин|min)/i)
+    if (h) durationMs = parseFloat(h[1]) * 60 * 60 * 1000
+    else if (m) durationMs = parseInt(m[1]) * 60 * 1000
+  }
+
+  return { start, end: new Date(start.getTime() + durationMs) }
+}
+
+function buildGoogleLink(event) {
+  const params = new URLSearchParams({ action: 'TEMPLATE', text: event.title || '' })
+  const dt = parseDatetime(event)
+  if (dt) {
+    const fmt = (d) => d.toISOString().replace(/[-:.]/g, '').slice(0, 15)
+    params.set('dates', `${fmt(dt.start)}/${fmt(dt.end)}`)
+  }
+  if (event.description) params.set('details', event.description)
+  if (event.link)        params.set('location', event.link)
   return `https://calendar.google.com/calendar/render?${params.toString()}`
+}
+
+function buildOutlookLink(event) {
+  const params = new URLSearchParams({ path: '/calendar/action/compose', rru: 'addevent' })
+  if (event.title)       params.set('subject', event.title)
+  if (event.description) params.set('body', event.description)
+  if (event.link)        params.set('location', event.link)
+  const dt = parseDatetime(event)
+  if (dt) {
+    params.set('startdt', dt.start.toISOString())
+    params.set('enddt',   dt.end.toISOString())
+  }
+  return `https://outlook.live.com/calendar/0/deeplink/compose?${params.toString()}`
 }
 
 function escMd(str) {
