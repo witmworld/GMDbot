@@ -47,11 +47,12 @@ async function sendBroadcast(bot, msg) {
     }
   }
 
-  console.log(`[Scheduler] Broadcast sent: ${sent} recipients for tariff "${tariff ?? 'all'}"`)
+  console.log('[Scheduler] Message sent, recipients:', sent)
 }
 
 export async function checkScheduledMessages(bot) {
-  console.log('[Scheduler] checkScheduledMessages() called')
+  console.log('[Scheduler] ===== CHECK STARTED =====')
+  console.log('[Scheduler] Current time (Jerusalem):', moment.tz('Asia/Jerusalem').format('DD.MM.YYYY HH:mm:ss'))
 
   // Clear old scheduled timers
   for (const t of scheduledTimeouts) clearTimeout(t)
@@ -66,28 +67,46 @@ export async function checkScheduledMessages(bot) {
   }
 
   const pending = messages.filter(m => m.fields['send'] === true)
-  console.log(`[Scheduler] Found ${pending.length} pending message(s) with send=true`)
+  console.log('[Scheduler] Found messages with send=true:', pending.length)
+  pending.forEach(rec => {
+    console.log('  - Message ID:', rec.id, 'Scheduled for:', rec.fields['Время рассылки'], 'Tariff:', rec.fields['Тариф'])
+  })
 
   if (!pending.length) return
 
-  const now = Date.now()
+  const nowMoment = moment.tz('Asia/Jerusalem')
+
+  const overdueMessages = []
+  const futureMessages  = []
 
   for (const msg of pending) {
     const sendTimeStr = msg.fields['Время рассылки']
-    const sendTime    = sendTimeStr ? new Date(sendTimeStr).getTime() : null
+    const sendMoment  = sendTimeStr ? moment.tz(sendTimeStr, 'Asia/Jerusalem') : null
 
-    if (!sendTime || isNaN(sendTime) || sendTime <= now) {
-      // Send immediately
-      console.log(`[Scheduler] Sending immediately: ID ${msg.id}`)
-      await sendBroadcast(bot, msg)
+    if (!sendMoment || !sendMoment.isValid() || !sendMoment.isAfter(nowMoment)) {
+      overdueMessages.push(msg)
     } else {
-      // Schedule for future
-      const delay   = sendTime - now
-      const minutes = Math.round(delay / 60_000)
-      console.log(`[Scheduler] Scheduled: ID ${msg.id} in ${minutes} min (${new Date(sendTime).toISOString()})`)
-      const t = setTimeout(() => sendBroadcast(bot, msg), delay)
-      scheduledTimeouts.push(t)
+      futureMessages.push({ msg, sendMoment })
     }
+  }
+
+  console.log('[Scheduler] Overdue messages (send now):', overdueMessages.length)
+  console.log('[Scheduler] Future messages (schedule setTimeout):', futureMessages.length)
+
+  futureMessages.forEach(({ msg, sendMoment }) => {
+    const delay = sendMoment.diff(moment.tz('Asia/Jerusalem'))
+    console.log('  - Will send at:', sendMoment.format('DD.MM HH:mm'), 'in', Math.round(delay / 60000), 'minutes')
+  })
+
+  for (const msg of overdueMessages) {
+    console.log(`[Scheduler] Sending immediately: ID ${msg.id}`)
+    await sendBroadcast(bot, msg)
+  }
+
+  for (const { msg, sendMoment } of futureMessages) {
+    const delay = sendMoment.diff(moment.tz('Asia/Jerusalem'))
+    const t = setTimeout(() => sendBroadcast(bot, msg), delay)
+    scheduledTimeouts.push(t)
   }
 }
 
