@@ -48,6 +48,11 @@ try {
   const bot = new Telegraf(process.env.BOT_TOKEN)
   const ADMIN_USER_ID = Number(process.env.ADMIN_USER_ID)
 
+  bot.command('ping', async (ctx) => {
+    console.log('[PING] Command received!')
+    await ctx.reply('🏓 PONG!')
+  })
+
   console.log('Registering scenes...')
   const stage = new Scenes.Stage([
     startScene,
