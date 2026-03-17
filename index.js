@@ -66,6 +66,14 @@ try {
   ])
   console.log('Scenes registered:', stage.scenes.size)
 
+  bot.use(async (ctx, next) => {
+    console.log('[Webhook] ===== INCOMING =====')
+    console.log('[Webhook] Type:', ctx.updateType)
+    console.log('[Webhook] From:', ctx.from?.id, ctx.from?.username)
+    console.log('[Webhook] Text:', ctx.message?.text || ctx.callbackQuery?.data)
+    await next()
+  })
+
   bot.use(session({ getSessionKey: (ctx) => String(ctx.from?.id) }))
 
   // ─── Admin: pending scan state (intercept before scene) ──────────────────────
