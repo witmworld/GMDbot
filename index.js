@@ -182,16 +182,20 @@ try {
     await ctx.reply(msg)
   })
 
-  console.log('Launching bot...')
-  bot.launch()
-    .then(async () => {
+  console.log('Launching bot...');
+  (async () => {
+    try {
+      await bot.launch()
       console.log('=== BOT LAUNCHED ===')
+
       await checkScheduledMessages(bot)
       console.log('=== INITIAL SCHEDULER CHECK COMPLETED ===')
-    })
-    .catch(err => console.error('Bot launch error:', err))
 
-  startScheduler(bot)
+      startScheduler(bot)
+    } catch (err) {
+      console.error('Bot launch error:', err)
+    }
+  })()
 
   app.post('/payment/webhook', async (req, res) => {
     const body = req.body || {}
