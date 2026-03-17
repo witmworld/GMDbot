@@ -55,6 +55,26 @@ try {
     await ctx.reply('🏓 PONG!')
   })
 
+  bot.command('reset_webhook', async (ctx) => {
+    if (ctx.from.id !== 867023416) return
+
+    try {
+      await ctx.reply('⏳ Сбрасываю webhook...')
+
+      await ctx.telegram.deleteWebhook({ drop_pending_updates: true })
+      await ctx.reply('✅ Старый webhook удалён, pending updates очищены')
+
+      const WEBHOOK_URL = process.env.WEBHOOK_DOMAIN + '/webhook'
+      await ctx.telegram.setWebhook(WEBHOOK_URL)
+      await ctx.reply('✅ Новый webhook установлен: ' + WEBHOOK_URL)
+
+      const info = await ctx.telegram.getWebhookInfo()
+      await ctx.reply('📊 Webhook Info:\nURL: ' + info.url + '\nPending: ' + info.pending_update_count)
+    } catch (err) {
+      await ctx.reply('❌ Ошибка: ' + err.message)
+    }
+  })
+
   bot.command('test_calendar', async (ctx) => {
     console.log('[TEST] ===== CALENDAR TEST STARTED =====')
     console.log('[TEST] From user:', ctx.from.id)
