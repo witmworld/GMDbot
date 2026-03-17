@@ -152,6 +152,17 @@ try {
   //   }
   // })
 
+  bot.command('test_calendar', async (ctx) => {
+    if (ctx.from.id !== 867023416) return
+    try {
+      const { createTestEvent } = await import('./integrations/googleCalendar.js')
+      const result = await createTestEvent()
+      await ctx.reply('✅ Календарь работает! Event ID: ' + result.eventId)
+    } catch (err) {
+      await ctx.reply('❌ Ошибка: ' + err.message)
+    }
+  })
+
   bot.command('test_fillout', async (ctx) => {
     if (ctx.from.id !== ADMIN_USER_ID) return
 
