@@ -53,6 +53,27 @@ try {
     await ctx.reply('🏓 PONG!')
   })
 
+  bot.command('test_calendar', async (ctx) => {
+    console.log('[TEST] ===== CALENDAR TEST STARTED =====')
+    console.log('[TEST] From user:', ctx.from.id)
+
+    if (ctx.from.id !== 867023416) {
+      return await ctx.reply('❌ Нет доступа')
+    }
+
+    await ctx.reply('⏳ Проверяю Calendar API...')
+
+    try {
+      const gcal = await import('./integrations/googleCalendar.js')
+      const testEvent = await gcal.createTestEvent()
+
+      await ctx.reply(`✅ Календарь работает!\n\nEvent ID: ${testEvent.id}\nLink: ${testEvent.htmlLink}`)
+    } catch (err) {
+      console.error('[TEST] Calendar error:', err)
+      await ctx.reply('❌ Ошибка Calendar API: ' + err.message)
+    }
+  })
+
   console.log('Registering scenes...')
   const stage = new Scenes.Stage([
     startScene,
@@ -165,23 +186,6 @@ try {
   //   }
   // })
 
-  bot.command('test_calendar', async (ctx) => {
-    console.log('[TEST] ===== COMMAND RECEIVED =====')
-    console.log('[TEST] From user:', ctx.from.id)
-
-    if (ctx.from.id !== 867023416) {
-      return await ctx.reply('❌ Нет доступа')
-    }
-
-    await ctx.reply('⏳ Проверяю Calendar API...')
-
-    try {
-      const result = await ctx.telegram.sendMessage(ctx.chat.id, '✅ Тестовое сообщение')
-      await ctx.reply('✅ Базовая отправка работает! Message ID: ' + result.message_id)
-    } catch (err) {
-      await ctx.reply('❌ Ошибка: ' + err.message)
-    }
-  })
 
   bot.command('test_fillout', async (ctx) => {
     if (ctx.from.id !== ADMIN_USER_ID) return
