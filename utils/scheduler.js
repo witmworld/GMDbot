@@ -1,63 +1,112 @@
 import { getMessages, getClubMembers, clearSendFlag } from '../integrations/fillout.js'
 
-export function startScheduler(bot) {
-  console.log('[Scheduler] Started — checking every 5 min')
+const scheduledTimeouts = []
 
-  setInterval(async () => {
-    let messages
+async function sendBroadcast(bot, msg) {
+  const id     = msg.id
+  const text   = msg.fields['Текст сообщения']
+  const tariff = msg.fields['Тариф'] || null
+
+  if (!text) {
+    console.log(`[Scheduler] Skipping ID: ${id} — no text`)
+    return
+  }
+
+  console.log(`[Scheduler] Sending broadcast ID: ${id} | tariff: "${tariff ?? 'all'}"`)
+
+  try {
+    await clearSendFlag(id)
+  } catch (e) {
+    console.error('[Scheduler] clearSendFlag failed:', e.message)
+  }
+
+  let allMembers
+  try {
+    allMembers = await getClubMembers()
+  } catch (e) {
+    console.error('[Scheduler] getClubMembers failed:', e.message)
+    return
+  }
+
+  const targets = allMembers.filter(m => {
+    const tgId       = m.fields['telegram_id']
+    const userTariff = m.fields['Тариф']
+    if (!tgId) return false
+    if (tariff) return userTariff === tariff
+    return true
+  })
+
+  let sent = 0
+  for (const member of targets) {
     try {
-      messages = await getMessages()
+      await bot.telegram.sendMessage(String(member.fields['telegram_id']), text)
+      sent++
     } catch (e) {
-      console.error('[Scheduler] getMessages failed:', e.message)
-      return
+      console.error(`[Scheduler] sendMessage failed for ${member.fields['telegram_id']}:`, e.message)
     }
+  }
 
-    const pending = messages.filter(m => m.fields['send'] === true)
-    if (!pending.length) return
+  console.log(`[Scheduler] Broadcast sent: ${sent} recipients for tariff "${tariff ?? 'all'}"`)
+}
 
-    for (const msg of pending) {
-      const id     = msg.id
-      const text   = msg.fields['Текст сообщения']
-      const tariff = msg.fields['Тариф'] || null
+export async function checkScheduledMessages(bot) {
+  console.log('[Scheduler] checkScheduledMessages() called')
 
-      if (!text) continue
+  // Clear old scheduled timers
+  for (const t of scheduledTimeouts) clearTimeout(t)
+  scheduledTimeouts.length = 0
 
-      console.log(`[Scheduler] Processing manual send for message ID: ${id} | tariff: "${tariff ?? 'all'}"`)
+  let messages
+  try {
+    messages = await getMessages()
+  } catch (e) {
+    console.error('[Scheduler] getMessages failed:', e.message)
+    return
+  }
 
-      try {
-        await clearSendFlag(id)
-      } catch (e) {
-        console.error('[Scheduler] clearSendFlag failed:', e.message)
-        continue
-      }
+  const pending = messages.filter(m => m.fields['send'] === true)
+  console.log(`[Scheduler] Found ${pending.length} pending message(s) with send=true`)
 
-      let allMembers
-      try {
-        allMembers = await getClubMembers()
-      } catch (e) {
-        console.error('[Scheduler] getClubMembers failed:', e.message)
-        continue
-      }
+  if (!pending.length) return
 
-      const targets = allMembers.filter(m => {
-        const tgId       = m.fields['telegram_id']
-        const userTariff = m.fields['Тариф']
-        if (!tgId) return false
-        if (tariff) return userTariff === tariff
-        return true
-      })
+  const now = Date.now()
 
-      let sent = 0
-      for (const member of targets) {
-        try {
-          await bot.telegram.sendMessage(String(member.fields['telegram_id']), text)
-          sent++
-        } catch (e) {
-          console.error(`[Scheduler] sendMessage failed for ${member.fields['telegram_id']}:`, e.message)
-        }
-      }
+  for (const msg of pending) {
+    const sendTimeStr = msg.fields['Время рассылки']
+    const sendTime    = sendTimeStr ? new Date(sendTimeStr).getTime() : null
 
-      console.log(`[Scheduler] Broadcast sent: ${sent} recipients for tariff "${tariff ?? 'all'}"`)
+    if (!sendTime || isNaN(sendTime) || sendTime <= now) {
+      // Send immediately
+      console.log(`[Scheduler] Sending immediately: ID ${msg.id}`)
+      await sendBroadcast(bot, msg)
+    } else {
+      // Schedule for future
+      const delay   = sendTime - now
+      const minutes = Math.round(delay / 60_000)
+      console.log(`[Scheduler] Scheduled: ID ${msg.id} in ${minutes} min (${new Date(sendTime).toISOString()})`)
+      const t = setTimeout(() => sendBroadcast(bot, msg), delay)
+      scheduledTimeouts.push(t)
     }
-  }, 5 * 60_000)
+  }
+}
+
+function scheduleDailyAt18(bot) {
+  const now  = new Date()
+  const next = new Date()
+  next.setHours(18, 0, 0, 0)
+  if (next <= now) next.setDate(next.getDate() + 1)
+
+  const delay   = next - now
+  const minutes = Math.round(delay / 60_000)
+  console.log(`[Scheduler] Next daily check at 18:00 — in ${minutes} min`)
+
+  setTimeout(() => {
+    checkScheduledMessages(bot)
+    scheduleDailyAt18(bot)
+  }, delay)
+}
+
+export function startScheduler(bot) {
+  console.log('[Scheduler] Started — daily check at 18:00')
+  scheduleDailyAt18(bot)
 }

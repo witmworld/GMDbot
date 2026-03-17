@@ -15,7 +15,7 @@ import { adminReceiptsScene } from './scenes/admin-receipts.scene.js'
 import { menuScene } from './scenes/menu.scene.js'
 import { subscribeScene } from './scenes/subscribe.scene.js'
 import { scanGroupMembers } from './utils/group-scanner.js'
-import { startScheduler } from './utils/scheduler.js'
+import { startScheduler, checkScheduledMessages } from './utils/scheduler.js'
 import { getTariffs, getClubMembers, createClubMember } from './integrations/fillout.js'
 import { findLeadByOrderId, updateLeadPaymentStatus, updateLeadFields } from './integrations/bitrix.js'
 import { createReceipt } from './integrations/greeninvoice.js'
@@ -184,7 +184,10 @@ try {
 
   console.log('Launching bot...')
   bot.launch()
-    .then(() => console.log('✅ Bot launched successfully'))
+    .then(() => {
+      console.log('✅ Bot launched successfully')
+      checkScheduledMessages(bot)
+    })
     .catch(err => console.error('Bot launch error:', err))
 
   startScheduler(bot)
