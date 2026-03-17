@@ -216,6 +216,10 @@ try {
       // Потом launch (он повиснет на webhook сервере, это ОК)
       await bot.launch()
       console.log('🤖 Где мои деньги · Клуб — бот запущен')
+
+      const webhookInfo = await bot.telegram.getWebhookInfo()
+      console.log('[Webhook] URL:', webhookInfo.url)
+      console.log('[Webhook] Pending updates:', webhookInfo.pending_update_count)
     } catch (err) {
       console.error('Bot launch error:', err)
     }
