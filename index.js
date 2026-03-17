@@ -182,17 +182,20 @@ try {
     await ctx.reply(msg)
   })
 
-  console.log('Launching bot...');
-  (async () => {
+  ;(async () => {
     try {
       console.log('=== BEFORE BOT LAUNCH ===')
-      await bot.launch()
-      console.log('=== BOT LAUNCHED ===')
 
+      // Сначала scheduler — до launch, который повисает в webhook режиме
+      console.log('[Init] Starting scheduler and initial check...')
       await checkScheduledMessages(bot)
-      console.log('=== INITIAL SCHEDULER CHECK COMPLETED ===')
-
+      console.log('[Init] Initial check completed')
       startScheduler(bot)
+      console.log('[Init] Daily scheduler started')
+
+      // Потом launch (он повиснет на webhook сервере, это ОК)
+      await bot.launch()
+      console.log('🤖 Где мои деньги · Клуб — бот запущен')
     } catch (err) {
       console.error('Bot launch error:', err)
     }
