@@ -1,26 +1,26 @@
 import { google } from 'googleapis'
 
-if (!process.env.GOOGLE_CALENDAR_CREDENTIALS) {
-  throw new Error('GOOGLE_CALENDAR_CREDENTIALS not set in environment')
+function checkEnv() {
+  if (!process.env.GOOGLE_CALENDAR_CREDENTIALS) {
+    throw new Error('GOOGLE_CALENDAR_CREDENTIALS not set in environment')
+  }
+  if (!process.env.GOOGLE_CALENDAR_ID) {
+    throw new Error('GOOGLE_CALENDAR_ID not set in environment')
+  }
 }
-
-if (!process.env.GOOGLE_CALENDAR_ID) {
-  throw new Error('GOOGLE_CALENDAR_ID not set in environment')
-}
-
-const credentials = JSON.parse(process.env.GOOGLE_CALENDAR_CREDENTIALS)
-const CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID
 
 function getCalendarClient() {
+  checkEnv()
+  const credentials = JSON.parse(process.env.GOOGLE_CALENDAR_CREDENTIALS)
   const auth = new google.auth.GoogleAuth({
     credentials,
     scopes: ['https://www.googleapis.com/auth/calendar'],
   })
-  return google.calendar({ version: 'v3', auth })
+  return { calendar: google.calendar({ version: 'v3', auth }), calendarId: process.env.GOOGLE_CALENDAR_ID }
 }
 
 export async function createCalendarEvent(event) {
-  const calendar = getCalendarClient()
+  const { calendar, calendarId } = getCalendarClient()
 
   const dateRaw = (event.date || '').trim()
   const timeRaw = (event.time || '00:00').trim()
@@ -48,7 +48,7 @@ export async function createCalendarEvent(event) {
   ].filter(Boolean).join('\n')
 
   const res = await calendar.events.insert({
-    calendarId: CALENDAR_ID,
+    calendarId,
     requestBody: {
       summary:     event.title,
       description,
@@ -61,12 +61,12 @@ export async function createCalendarEvent(event) {
 }
 
 export async function createTestEvent() {
-  const calendar = getCalendarClient()
-  const now      = new Date()
-  const end      = new Date(now.getTime() + 60 * 60 * 1000) // +1 hour
+  const { calendar, calendarId } = getCalendarClient()
+  const now = new Date()
+  const end = new Date(now.getTime() + 60 * 60 * 1000) // +1 hour
 
   const res = await calendar.events.insert({
-    calendarId: CALENDAR_ID,
+    calendarId,
     requestBody: {
       summary:     'Test Event from GMD Bot',
       description: 'Автоматический тестовый ивент',
