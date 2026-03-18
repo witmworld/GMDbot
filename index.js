@@ -47,6 +47,11 @@ try {
   app.use(express.json())
   app.use(express.urlencoded({ extended: true }))
 
+  app.use((req, res, next) => {
+    console.log(`[HTTP] ${req.method} ${req.url} from ${req.ip}`)
+    next()
+  })
+
   const bot = new Telegraf(process.env.BOT_TOKEN)
   const ADMIN_USER_ID = Number(process.env.ADMIN_USER_ID)
 
