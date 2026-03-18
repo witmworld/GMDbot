@@ -13,6 +13,7 @@ import { documentsScene } from './scenes/documents.scene.js'
 import { accessScene } from './scenes/access.scene.js'
 import { adminReceiptsScene } from './scenes/admin-receipts.scene.js'
 import { adminCalendarScene } from './scenes/admin-calendar.scene.js'
+import { adminMenuScene } from './scenes/admin-menu.scene.js'
 import { menuScene } from './scenes/menu.scene.js'
 import { subscribeScene } from './scenes/subscribe.scene.js'
 import { scanGroupMembers } from './utils/group-scanner.js'
@@ -141,6 +142,7 @@ try {
     accessScene,
     adminReceiptsScene,
     adminCalendarScene,
+    adminMenuScene,
     menuScene,
     subscribeScene
   ])
@@ -185,6 +187,7 @@ try {
     return ctx.scene.enter('START')
   })
   bot.command('menu', (ctx) => ctx.scene.enter('MENU'))
+  bot.command('admin_menu', (ctx) => ctx.scene.enter('ADMIN_MENU'))
   bot.command('admin_calendar', (ctx) => {
     console.log('[ADMIN_CAL] ===== COMMAND RECEIVED =====')
     console.log('[ADMIN_CAL] From user:', ctx.from.id)
