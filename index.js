@@ -190,6 +190,10 @@ try {
     await ctx.reply(msg)
   })
 
+  bot.use(session({ getSessionKey: (ctx) => String(ctx.from?.id) }))
+
+  bot.use(stage.middleware())
+
   bot.use(async (ctx, next) => {
     console.log('[Webhook] ===== INCOMING =====')
     console.log('[Webhook] Type:', ctx.updateType)
@@ -197,8 +201,6 @@ try {
     console.log('[Webhook] Text:', ctx.message?.text || ctx.callbackQuery?.data)
     await next()
   })
-
-  bot.use(session({ getSessionKey: (ctx) => String(ctx.from?.id) }))
 
   // ─── Admin: pending scan state (intercept before scene) ──────────────────────
   const pendingScan = new Map()
@@ -255,8 +257,6 @@ try {
     }
     return next()
   })
-
-  bot.use(stage.middleware())
 
   // bot.command('scan_group', async (ctx) => {
   //   console.log('SCAN_GROUP COMMAND RECEIVED from user:', ctx.from.id)
