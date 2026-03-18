@@ -186,7 +186,16 @@ try {
   })
   bot.command('menu', (ctx) => ctx.scene.enter('MENU'))
   bot.command('admin_calendar', (ctx) => {
-    if (ctx.from.id !== 867023416) return
+    console.log('[ADMIN_CAL] ===== COMMAND RECEIVED =====')
+    console.log('[ADMIN_CAL] From user:', ctx.from.id)
+    console.log('[ADMIN_CAL] Has scene?', !!ctx.scene)
+
+    if (ctx.from.id !== 867023416) {
+      console.log('[ADMIN_CAL] Access denied')
+      return
+    }
+
+    console.log('[ADMIN_CAL] Entering scene...')
     return ctx.scene.enter('ADMIN_CALENDAR')
   })
   bot.hears('Админ Календарь', (ctx) => {
