@@ -127,11 +127,6 @@ try {
     }
   })
 
-  bot.command('admin_calendar', (ctx) => {
-    if (ctx.from.id !== 867023416) return
-    return ctx.scene.enter('ADMIN_CALENDAR')
-  })
-
   console.log('Registering scenes...')
   const stage = new Scenes.Stage([
     startScene,
@@ -151,15 +146,6 @@ try {
   ])
   console.log('Scenes registered:', stage.scenes.size)
 
-  bot.start(async (ctx) => {
-    ctx.session = {}
-    return ctx.scene.enter('START')
-  })
-  bot.command('menu', (ctx) => ctx.scene.enter('MENU'))
-  bot.hears('Админ Календарь', (ctx) => {
-    if (ctx.from.id !== 867023416) return
-    return ctx.scene.enter('ADMIN_CALENDAR')
-  })
   bot.command('test_fillout', async (ctx) => {
     if (ctx.from.id !== ADMIN_USER_ID) return
 
@@ -193,6 +179,20 @@ try {
   bot.use(session({ getSessionKey: (ctx) => String(ctx.from?.id) }))
 
   bot.use(stage.middleware())
+
+  bot.start(async (ctx) => {
+    ctx.session = {}
+    return ctx.scene.enter('START')
+  })
+  bot.command('menu', (ctx) => ctx.scene.enter('MENU'))
+  bot.command('admin_calendar', (ctx) => {
+    if (ctx.from.id !== 867023416) return
+    return ctx.scene.enter('ADMIN_CALENDAR')
+  })
+  bot.hears('Админ Календарь', (ctx) => {
+    if (ctx.from.id !== 867023416) return
+    return ctx.scene.enter('ADMIN_CALENDAR')
+  })
 
   bot.use(async (ctx, next) => {
     console.log('[Webhook] ===== INCOMING =====')
