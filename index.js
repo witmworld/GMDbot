@@ -247,6 +247,15 @@ try {
   //   }
   // })
 
+  app.get('/health', (req, res) => {
+    console.log('[Health] Check received')
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      webhook: process.env.WEBHOOK_DOMAIN
+    })
+  })
+
   // Webhook path — регистрируем СИНХРОННО до app.listen()
   const WEBHOOK_DOMAIN = process.env.WEBHOOK_DOMAIN || 'https://gmd-bot-production-9d5b.up.railway.app'
   const webhookPath = '/webhook'
