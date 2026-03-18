@@ -82,6 +82,11 @@ export async function getClubMembers(tableId = CLUB_TABLE_ID) {
   return data.records
 }
 
+export async function getClubMember(telegramId) {
+  const members = await getClubMembers()
+  return members.find(m => String(m.fields['telegram_id']) === String(telegramId))?.fields || null
+}
+
 export async function getMessages() {
   const url = `${BASE_URL}/bases/${FILLOUT_DATABASE_ID}/tables/${MESSAGE_TABLE_ID}/records/list`
   const res = await fetch(url, {
