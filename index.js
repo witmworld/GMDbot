@@ -120,6 +120,45 @@ try {
   ])
   console.log('Scenes registered:', stage.scenes.size)
 
+  bot.start(async (ctx) => {
+    ctx.session = {}
+    return ctx.scene.enter('START')
+  })
+  bot.command('menu', (ctx) => ctx.scene.enter('MENU'))
+  bot.hears('Админ Календарь', (ctx) => {
+    if (ctx.from.id !== 867023416) return
+    return ctx.scene.enter('ADMIN_CALENDAR')
+  })
+  bot.command('test_fillout', async (ctx) => {
+    if (ctx.from.id !== ADMIN_USER_ID) return
+
+    let msg = '🔍 Проверка подключения к Fillout\n\n'
+
+    try {
+      const tariffs = await getTariffs()
+      msg += `✅ Тарифы: найдено ${tariffs.length} записей\n`
+      tariffs.slice(0, 2).forEach((t, i) => {
+        msg += `  ${i + 1}. ${JSON.stringify(t)}\n`
+      })
+    } catch (e) {
+      msg += `❌ Тарифы: ошибка — ${e.message}\n`
+    }
+
+    msg += '\n'
+
+    try {
+      const members = await getClubMembers()
+      msg += `✅ Участники клуба: найдено ${members.length} записей\n`
+      members.slice(0, 2).forEach((m, i) => {
+        msg += `  ${i + 1}. ${JSON.stringify(m.fields)}\n`
+      })
+    } catch (e) {
+      msg += `❌ Участники клуба: ошибка — ${e.message}\n`
+    }
+
+    await ctx.reply(msg)
+  })
+
   bot.use(async (ctx, next) => {
     console.log('[Webhook] ===== INCOMING =====')
     console.log('[Webhook] Type:', ctx.updateType)
@@ -188,17 +227,6 @@ try {
 
   bot.use(stage.middleware())
 
-  bot.hears('Админ Календарь', (ctx) => {
-    if (ctx.from.id !== 867023416) return
-    return ctx.scene.enter('ADMIN_CALENDAR')
-  })
-
-  bot.start(async (ctx) => {
-    ctx.session = {}
-    return ctx.scene.enter('START')
-  })
-  bot.command('menu', (ctx) => ctx.scene.enter('MENU'))
-
   // bot.command('scan_group', async (ctx) => {
   //   console.log('SCAN_GROUP COMMAND RECEIVED from user:', ctx.from.id)
   //   console.log('Admin check:', ctx.from.id, 'vs', ADMIN_USER_ID, 'type:', typeof ctx.from.id, typeof ADMIN_USER_ID)
@@ -218,37 +246,6 @@ try {
   //     await ctx.reply('❌ Ошибка на этапе админов: ' + err.message)
   //   }
   // })
-
-
-  bot.command('test_fillout', async (ctx) => {
-    if (ctx.from.id !== ADMIN_USER_ID) return
-
-    let msg = '🔍 Проверка подключения к Fillout\n\n'
-
-    try {
-      const tariffs = await getTariffs()
-      msg += `✅ Тарифы: найдено ${tariffs.length} записей\n`
-      tariffs.slice(0, 2).forEach((t, i) => {
-        msg += `  ${i + 1}. ${JSON.stringify(t)}\n`
-      })
-    } catch (e) {
-      msg += `❌ Тарифы: ошибка — ${e.message}\n`
-    }
-
-    msg += '\n'
-
-    try {
-      const members = await getClubMembers()
-      msg += `✅ Участники клуба: найдено ${members.length} записей\n`
-      members.slice(0, 2).forEach((m, i) => {
-        msg += `  ${i + 1}. ${JSON.stringify(m.fields)}\n`
-      })
-    } catch (e) {
-      msg += `❌ Участники клуба: ошибка — ${e.message}\n`
-    }
-
-    await ctx.reply(msg)
-  })
 
   // Webhook path — регистрируем СИНХРОННО до app.listen()
   const WEBHOOK_DOMAIN = process.env.WEBHOOK_DOMAIN || 'https://gmd-bot-production-9d5b.up.railway.app'
