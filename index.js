@@ -259,6 +259,15 @@ try {
   // Webhook path — регистрируем СИНХРОННО до app.listen()
   const WEBHOOK_DOMAIN = process.env.WEBHOOK_DOMAIN || 'https://gmd-bot-production-9d5b.up.railway.app'
   const webhookPath = '/webhook'
+
+  app.post('/webhook', (req, res, next) => {
+    console.log('[Webhook] ===== RAW POST REQUEST =====')
+    console.log('[Webhook] Headers:', JSON.stringify(req.headers))
+    console.log('[Webhook] Body:', JSON.stringify(req.body))
+    console.log('[Webhook] URL:', req.url)
+    next()
+  })
+
   app.use(bot.webhookCallback(webhookPath))
   console.log('[Webhook] Callback registered for path:', webhookPath)
 
