@@ -60,6 +60,32 @@ try {
     await ctx.reply('🏓 PONG!')
   })
 
+  bot.command('force_reset_webhook', async (ctx) => {
+    if (ctx.from.id !== 867023416) return
+
+    try {
+      // 1. Полностью удалить webhook
+      await ctx.telegram.deleteWebhook({ drop_pending_updates: true })
+      await ctx.reply('✅ Webhook deleted')
+
+      // 2. Подождать 3 секунды
+      await new Promise(resolve => setTimeout(resolve, 3000))
+
+      // 3. Установить заново с секретным токеном
+      const WEBHOOK_URL = process.env.WEBHOOK_DOMAIN + '/webhook'
+      const secret = Math.random().toString(36).substring(7)
+      await ctx.telegram.setWebhook(WEBHOOK_URL, { secret_token: secret })
+
+      await ctx.reply('✅ Webhook set with secret: ' + secret)
+
+      // 4. Проверить
+      const info = await ctx.telegram.getWebhookInfo()
+      await ctx.reply(JSON.stringify(info, null, 2))
+    } catch (err) {
+      await ctx.reply('❌ Error: ' + err.message)
+    }
+  })
+
   bot.command('reset_webhook', async (ctx) => {
     if (ctx.from.id !== 867023416) return
 
