@@ -142,27 +142,6 @@ try {
     }
   })
 
-  console.log('Registering scenes...')
-  const stage = new Scenes.Stage([
-    startScene,
-    phoneScene,
-    emailScene,
-    tariffScene,
-    periodScene,
-    confirmScene,
-    paymentScene,
-    aiScene,
-    documentsScene,
-    accessScene,
-    adminReceiptsScene,
-    adminCalendarScene,
-    adminMenuScene,
-    adminPaymentLinkScene,
-    menuScene,
-    subscribeScene
-  ])
-  console.log('Scenes registered:', stage.scenes.size)
-
   bot.command('test_fillout', async (ctx) => {
     if (ctx.from.id !== ADMIN_USER_ID) return
 
@@ -192,6 +171,27 @@ try {
 
     await ctx.reply(msg)
   })
+
+  console.log('Registering scenes...')
+  const stage = new Scenes.Stage([
+    startScene,
+    phoneScene,
+    emailScene,
+    tariffScene,
+    periodScene,
+    confirmScene,
+    paymentScene,
+    aiScene,
+    documentsScene,
+    accessScene,
+    adminReceiptsScene,
+    adminCalendarScene,
+    adminMenuScene,
+    adminPaymentLinkScene,
+    menuScene,
+    subscribeScene
+  ])
+  console.log('Scenes registered:', stage.scenes.size)
 
   bot.use(session({ getSessionKey: (ctx) => String(ctx.from?.id) }))
 
