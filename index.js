@@ -66,16 +66,6 @@ try {
     await ctx.reply('Test admin command works!')
   })
 
-  bot.command('debug_admin', async (ctx) => {
-    console.log('[DEBUG] User ID:', ctx.from.id, 'type:', typeof ctx.from.id)
-
-    const member = await getClubMember(ctx.from.id)
-    console.log('[DEBUG] Member found:', !!member)
-    console.log('[DEBUG] Member data:', JSON.stringify(member, null, 2))
-
-    await ctx.reply('Check logs for details')
-  })
-
   bot.command('force_reset_webhook', async (ctx) => {
     if (ctx.from.id !== 867023416) return
 
@@ -196,6 +186,23 @@ try {
   bot.use(session({ getSessionKey: (ctx) => String(ctx.from?.id) }))
 
   bot.use(stage.middleware())
+
+  bot.command('debug_admin', async (ctx) => {
+    console.log('[DEBUG] ===== COMMAND RECEIVED =====')
+    console.log('[DEBUG] User ID:', ctx.from.id, 'type:', typeof ctx.from.id)
+
+    try {
+      const member = await getClubMember(ctx.from.id)
+      console.log('[DEBUG] Member found:', !!member)
+      if (member) {
+        console.log('[DEBUG] Member data:', JSON.stringify(member, null, 2))
+      }
+      await ctx.reply('✅ Check logs')
+    } catch (err) {
+      console.error('[DEBUG] Error:', err)
+      await ctx.reply('❌ Error: ' + err.message)
+    }
+  })
 
   bot.start(async (ctx) => {
     ctx.session = {}
