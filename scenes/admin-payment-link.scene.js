@@ -58,12 +58,11 @@ adminPaymentLinkScene.on('text', async (ctx) => {
 
       // Показать ссылку
       await ctx.reply(
-        `✅ *Ссылка создана!*\n\n` +
+        `✅ Ссылка создана!\n\n` +
         `📝 Название: ${ctx.session.paymentLinkData.title}\n` +
         `💰 Сумма: ₪${amount}\n\n` +
         `🔗 Ссылка:\n${paymentUrl}`,
         {
-          parse_mode: 'Markdown',
           ...Markup.inlineKeyboard([
             [Markup.button.callback('📤 Разослать участникам', 'payment_link:broadcast')],
             [Markup.button.callback('✅ Готово', 'payment_link:done')]
