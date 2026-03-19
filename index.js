@@ -18,7 +18,7 @@ import { menuScene } from './scenes/menu.scene.js'
 import { subscribeScene } from './scenes/subscribe.scene.js'
 import { scanGroupMembers } from './utils/group-scanner.js'
 import { startScheduler, checkScheduledMessages } from './utils/scheduler.js'
-import { getTariffs, getClubMembers, createClubMember } from './integrations/fillout.js'
+import { getTariffs, getClubMembers, getClubMember, createClubMember } from './integrations/fillout.js'
 import { findLeadByOrderId, updateLeadPaymentStatus, updateLeadFields } from './integrations/bitrix.js'
 import { createReceipt } from './integrations/greeninvoice.js'
 
@@ -64,6 +64,16 @@ try {
   bot.command('test_admin', async (ctx) => {
     console.log('[TEST] test_admin received from:', ctx.from.id)
     await ctx.reply('Test admin command works!')
+  })
+
+  bot.command('debug_admin', async (ctx) => {
+    console.log('[DEBUG] User ID:', ctx.from.id, 'type:', typeof ctx.from.id)
+
+    const member = await getClubMember(ctx.from.id)
+    console.log('[DEBUG] Member found:', !!member)
+    console.log('[DEBUG] Member data:', JSON.stringify(member, null, 2))
+
+    await ctx.reply('Check logs for details')
   })
 
   bot.command('force_reset_webhook', async (ctx) => {
