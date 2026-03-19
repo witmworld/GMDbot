@@ -187,7 +187,10 @@ try {
     return ctx.scene.enter('START')
   })
   bot.command('menu', (ctx) => ctx.scene.enter('MENU'))
-  bot.command('admin_menu', (ctx) => ctx.scene.enter('ADMIN_MENU'))
+  bot.command('admin_menu', async (ctx) => {
+    console.log('[ADMIN_MENU] Command received from:', ctx.from.id)
+    return ctx.scene.enter('ADMIN_MENU')
+  })
   bot.command('admin_calendar', (ctx) => {
     console.log('[ADMIN_CAL] ===== COMMAND RECEIVED =====')
     console.log('[ADMIN_CAL] From user:', ctx.from.id)
