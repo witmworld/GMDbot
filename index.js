@@ -61,6 +61,11 @@ try {
     await ctx.reply('🏓 PONG!')
   })
 
+  bot.command('test_admin', async (ctx) => {
+    console.log('[TEST] test_admin received from:', ctx.from.id)
+    await ctx.reply('Test admin command works!')
+  })
+
   bot.command('force_reset_webhook', async (ctx) => {
     if (ctx.from.id !== 867023416) return
 
