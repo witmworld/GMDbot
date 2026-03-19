@@ -23,6 +23,14 @@ import { getTariffs, getClubMembers, getClubMember, createClubMember } from './i
 import { findLeadByOrderId, updateLeadPaymentStatus, updateLeadFields } from './integrations/bitrix.js'
 import { createReceipt } from './integrations/greeninvoice.js'
 
+process.on('unhandledRejection', (err) => {
+  console.error('[FATAL] Unhandled Rejection:', err)
+})
+
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] Uncaught Exception:', err)
+})
+
 console.log('ENV CHECK:', {
   ADMIN_USER_ID: process.env.ADMIN_USER_ID,
   parsed: Number(process.env.ADMIN_USER_ID),
@@ -316,6 +324,11 @@ try {
   //     await ctx.reply('❌ Ошибка на этапе админов: ' + err.message)
   //   }
   // })
+
+  bot.catch((err, ctx) => {
+    console.error('[BOT ERROR]', err)
+    console.error('[BOT ERROR] Update:', JSON.stringify(ctx.update))
+  })
 
   app.get('/health', (req, res) => {
     console.log('[Health] Check received')
