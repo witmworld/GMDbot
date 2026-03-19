@@ -58,6 +58,13 @@ export function verifyWebhookSignature(params) {
 /**
  * Создание платежа
  */
+export async function createPaymentLink({ orderId, amount, description }) {
+  const data = await createPayment({ orderId, amount, description })
+  const url = data.url || data.payment_url || data.link || data.pay_url || ''
+  if (!url) throw new Error('No payment URL in response: ' + JSON.stringify(data))
+  return url
+}
+
 export async function createPayment({ orderId, amount, description, customerPhone, customerEmail }) {
   const payload = {
     login: ALLPAY_LOGIN,

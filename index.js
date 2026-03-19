@@ -14,6 +14,7 @@ import { accessScene } from './scenes/access.scene.js'
 import { adminReceiptsScene } from './scenes/admin-receipts.scene.js'
 import { adminCalendarScene } from './scenes/admin-calendar.scene.js'
 import { adminMenuScene } from './scenes/admin-menu.scene.js'
+import { adminPaymentLinkScene } from './scenes/admin-payment-link.scene.js'
 import { menuScene } from './scenes/menu.scene.js'
 import { subscribeScene } from './scenes/subscribe.scene.js'
 import { scanGroupMembers } from './utils/group-scanner.js'
@@ -148,6 +149,7 @@ try {
     adminReceiptsScene,
     adminCalendarScene,
     adminMenuScene,
+    adminPaymentLinkScene,
     menuScene,
     subscribeScene
   ])
