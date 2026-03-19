@@ -29,10 +29,13 @@ async function sendBroadcast(bot, msg) {
     return
   }
 
-  const broadcastAll = !tariff || tariff === 'ВСЕ' || tariff === 'КЛУБ'
+  const broadcastAll    = !tariff || tariff === 'ВСЕ' || tariff === 'КЛУБ'
+  const broadcastPremium = tariff === 'ПРЕМИУМ'
 
   if (broadcastAll) {
     console.log('[Scheduler] Broadcasting to ALL members')
+  } else if (broadcastPremium) {
+    console.log('[Scheduler] Broadcasting to ПРЕМИУМ (all except БАЗА)')
   } else {
     console.log(`[Scheduler] Broadcasting to tariff: ${tariff}`)
   }
@@ -42,6 +45,7 @@ async function sendBroadcast(bot, msg) {
     const userTariff = m.fields['Тариф']
     if (!tgId) return false
     if (broadcastAll) return true
+    if (broadcastPremium) return userTariff !== 'БАЗА'
     return userTariff === tariff
   })
 
