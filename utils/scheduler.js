@@ -1,6 +1,9 @@
 import moment from 'moment-timezone'
 import { getMessages, getClubMembers, clearSendFlag } from '../integrations/fillout.js'
 
+const SCHEDULER_ID = Math.random().toString(36).substring(7)
+console.log('[Scheduler] Instance ID:', SCHEDULER_ID)
+
 const scheduledTimeouts = new Map()
 
 async function sendBroadcast(bot, msg) {
@@ -13,19 +16,19 @@ async function sendBroadcast(bot, msg) {
     return
   }
 
-  console.log(`[Scheduler] Sending broadcast ID: ${id} | tariff: "${tariff ?? 'none'}"`)
+  console.log(`[Scheduler ${SCHEDULER_ID}] Sending broadcast ID: ${id} | tariff: "${tariff ?? 'none'}"`)
 
   try {
     await clearSendFlag(id)
   } catch (e) {
-    console.error('[Scheduler] clearSendFlag failed:', e.message)
+    console.error(`[Scheduler ${SCHEDULER_ID}] clearSendFlag failed:`, e.message)
   }
 
   let allMembers
   try {
     allMembers = await getClubMembers()
   } catch (e) {
-    console.error('[Scheduler] getClubMembers failed:', e.message)
+    console.error(`[Scheduler ${SCHEDULER_ID}] getClubMembers failed:`, e.message)
     return
   }
 
@@ -33,11 +36,11 @@ async function sendBroadcast(bot, msg) {
   const broadcastPremium = tariff === 'ПРЕМИУМ'
 
   if (broadcastAll) {
-    console.log('[Scheduler] Broadcasting to ALL members')
+    console.log(`[Scheduler ${SCHEDULER_ID}] Broadcasting to ALL members`)
   } else if (broadcastPremium) {
-    console.log('[Scheduler] Broadcasting to ПРЕМИУМ (all except БАЗА)')
+    console.log(`[Scheduler ${SCHEDULER_ID}] Broadcasting to ПРЕМИУМ (all except БАЗА)`)
   } else {
-    console.log(`[Scheduler] Broadcasting to tariff: ${tariff}`)
+    console.log(`[Scheduler ${SCHEDULER_ID}] Broadcasting to tariff: ${tariff}`)
   }
 
   const targets = allMembers.filter(m => {
@@ -55,24 +58,24 @@ async function sendBroadcast(bot, msg) {
       await bot.telegram.sendMessage(String(member.fields['telegram_id']), text)
       sent++
     } catch (e) {
-      console.error(`[Scheduler] sendMessage failed for ${member.fields['telegram_id']}:`, e.message)
+      console.error(`[Scheduler ${SCHEDULER_ID}] sendMessage failed for ${member.fields['telegram_id']}:`, e.message)
     }
   }
 
-  console.log(`[Scheduler] Sent to ${sent} recipients`)
+  console.log(`[Scheduler ${SCHEDULER_ID}] Sent to ${sent} recipients`)
 
   // После успешной отправки
   scheduledTimeouts.delete(msg.id)
 }
 
 export async function checkScheduledMessages(bot) {
-  console.log('[Scheduler] ===== CHECK STARTED =====')
-  console.log('[Scheduler] Current time (Jerusalem):', moment.tz('Asia/Jerusalem').format('DD.MM.YYYY HH:mm:ss'))
+  console.log(`[Scheduler ${SCHEDULER_ID}] ===== CHECK STARTED =====`)
+  console.log(`[Scheduler ${SCHEDULER_ID}] Current time (Jerusalem):`, moment.tz('Asia/Jerusalem').format('DD.MM.YYYY HH:mm:ss'))
 
   // Очистить все старые таймеры
   for (const [id, timeoutId] of scheduledTimeouts.entries()) {
     clearTimeout(timeoutId)
-    console.log('[Scheduler] Cleared old timeout:', id)
+    console.log(`[Scheduler ${SCHEDULER_ID}] Cleared old timeout:`, id)
   }
   scheduledTimeouts.clear()
 
@@ -80,14 +83,14 @@ export async function checkScheduledMessages(bot) {
   try {
     messages = await getMessages()
   } catch (e) {
-    console.error('[Scheduler] getMessages failed:', e.message)
+    console.error(`[Scheduler ${SCHEDULER_ID}] getMessages failed:`, e.message)
     return
   }
 
   const pending = messages.filter(m => m.fields['send'] === true)
-  console.log('[Scheduler] Found messages with send=true:', pending.length)
+  console.log(`[Scheduler ${SCHEDULER_ID}] Found messages with send=true:`, pending.length)
   pending.forEach(rec => {
-    console.log('  - Message ID:', rec.id, 'Scheduled for:', rec.fields['Время рассылки'], 'Tariff:', rec.fields['Тариф'])
+    console.log(`  - Message ID: ${rec.id} Scheduled for: ${rec.fields['Время рассылки']} Tariff: ${rec.fields['Тариф']}`)
   })
 
   if (!pending.length) return
@@ -108,16 +111,16 @@ export async function checkScheduledMessages(bot) {
     }
   }
 
-  console.log('[Scheduler] Overdue messages (send now):', overdueMessages.length)
-  console.log('[Scheduler] Future messages (schedule setTimeout):', futureMessages.length)
+  console.log(`[Scheduler ${SCHEDULER_ID}] Overdue messages (send now):`, overdueMessages.length)
+  console.log(`[Scheduler ${SCHEDULER_ID}] Future messages (schedule setTimeout):`, futureMessages.length)
 
   futureMessages.forEach(({ msg, sendMoment }) => {
     const delay = sendMoment.diff(moment.tz('Asia/Jerusalem'))
-    console.log('  - Will send at:', sendMoment.format('DD.MM HH:mm'), 'in', Math.round(delay / 60000), 'minutes')
+    console.log(`  - Will send at: ${sendMoment.format('DD.MM HH:mm')} in ${Math.round(delay / 60000)} minutes`)
   })
 
   for (const msg of overdueMessages) {
-    console.log(`[Scheduler] Sending immediately: ID ${msg.id}`)
+    console.log(`[Scheduler ${SCHEDULER_ID}] Sending immediately: ID ${msg.id}`)
     await sendBroadcast(bot, msg)
   }
 
@@ -125,7 +128,7 @@ export async function checkScheduledMessages(bot) {
     const delay = sendMoment.diff(moment.tz('Asia/Jerusalem'))
     const timeoutId = setTimeout(() => sendBroadcast(bot, msg), delay)
     scheduledTimeouts.set(msg.id, timeoutId)
-    console.log('[Scheduler] Scheduled timeout for message:', msg.id)
+    console.log(`[Scheduler ${SCHEDULER_ID}] Scheduled timeout for message:`, msg.id)
   }
 }
 
@@ -136,8 +139,8 @@ function scheduleDailyAt18(bot) {
 
   const delay   = next18.valueOf() - now.valueOf()
   const minutes = Math.round(delay / 60_000)
-  console.log(`[Scheduler] Current time (Jerusalem): ${now.format('HH:mm')}`)
-  console.log(`[Scheduler] Next daily check at 18:00 — in ${minutes} min`)
+  console.log(`[Scheduler ${SCHEDULER_ID}] Current time (Jerusalem): ${now.format('HH:mm')}`)
+  console.log(`[Scheduler ${SCHEDULER_ID}] Next daily check at 18:00 — in ${minutes} min`)
 
   setTimeout(() => {
     checkScheduledMessages(bot)
@@ -146,6 +149,6 @@ function scheduleDailyAt18(bot) {
 }
 
 export function startScheduler(bot) {
-  console.log('[Scheduler] Started — daily check at 18:00')
+  console.log(`[Scheduler ${SCHEDULER_ID}] Started — daily check at 18:00`)
   scheduleDailyAt18(bot)
 }
