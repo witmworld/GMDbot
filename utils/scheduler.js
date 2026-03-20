@@ -1,7 +1,7 @@
 import moment from 'moment-timezone'
 import { getMessages, getClubMembers, clearSendFlag } from '../integrations/fillout.js'
 
-const scheduledTimeouts = []
+const scheduledTimeouts = new Map()
 
 async function sendBroadcast(bot, msg) {
   const id     = msg.id
@@ -60,15 +60,21 @@ async function sendBroadcast(bot, msg) {
   }
 
   console.log(`[Scheduler] Sent to ${sent} recipients`)
+
+  // После успешной отправки
+  scheduledTimeouts.delete(msg.id)
 }
 
 export async function checkScheduledMessages(bot) {
   console.log('[Scheduler] ===== CHECK STARTED =====')
   console.log('[Scheduler] Current time (Jerusalem):', moment.tz('Asia/Jerusalem').format('DD.MM.YYYY HH:mm:ss'))
 
-  // Clear old scheduled timers
-  for (const t of scheduledTimeouts) clearTimeout(t)
-  scheduledTimeouts.length = 0
+  // Очистить все старые таймеры
+  for (const [id, timeoutId] of scheduledTimeouts.entries()) {
+    clearTimeout(timeoutId)
+    console.log('[Scheduler] Cleared old timeout:', id)
+  }
+  scheduledTimeouts.clear()
 
   let messages
   try {
@@ -117,8 +123,9 @@ export async function checkScheduledMessages(bot) {
 
   for (const { msg, sendMoment } of futureMessages) {
     const delay = sendMoment.diff(moment.tz('Asia/Jerusalem'))
-    const t = setTimeout(() => sendBroadcast(bot, msg), delay)
-    scheduledTimeouts.push(t)
+    const timeoutId = setTimeout(() => sendBroadcast(bot, msg), delay)
+    scheduledTimeouts.set(msg.id, timeoutId)
+    console.log('[Scheduler] Scheduled timeout for message:', msg.id)
   }
 }
 
