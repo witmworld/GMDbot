@@ -18,9 +18,22 @@ menuScene.on('callback_query', async (ctx) => {
   if (data === 'menu:subscribe') return ctx.scene.enter('SUBSCRIBE')
 })
 
-menuScene.on('text', async (ctx) => {
-  console.log('[MENU] Text received:', ctx.message.text)
-  if (ctx.message.text === 'Админ Кабала') {
+menuScene.on('text', async (ctx, next) => {
+  const text = ctx.message.text
+
+  // Если это команда (начинается с /) — пропустить дальше
+  if (text.startsWith('/')) {
+    console.log('[MENU] Command detected, passing to handler:', text)
+    return next()
+  }
+
+  console.log('[MENU] Text received:', text)
+
+  // Обработка триггеров
+  if (text === 'Админ Кабала') {
     return ctx.scene.enter('ADMIN_RECEIPTS')
   }
+
+  // Для остального текста — тоже передать дальше
+  return next()
 })
