@@ -3,24 +3,44 @@ import { getMembersByTariffs } from '../integrations/fillout.js'
 
 export const broadcastSelectScene = new Scenes.BaseScene('BROADCAST_SELECT')
 
-const TARIFFS = ['КЛУБ', 'ПРЕМИУМ', 'БАЗА', 'ПРАКТИКА', 'ПРАКТИКА+', 'СОПРОВОЖДЕНИЕ', 'ТЕСТ']
+const btn = (label, tariff, selected) => {
+  const isSelected = selected.includes(tariff)
+  return Markup.button.callback(`${isSelected ? '✅' : '☐'} ${label}`, `tariff:${tariff}`)
+}
 
 function buildKeyboard(selected) {
-  const rows = TARIFFS.map(tariff => {
-    const isSelected = selected.includes(tariff)
-    const emoji = isSelected ? '☑️' : '☐'
-    return [Markup.button.callback(`${emoji} ${tariff}`, `tariff:${tariff}`)]
-  })
-  rows.push([
+  const keyboard = []
+
+  // Главные опции (на всю ширину)
+  keyboard.push([btn('КЛУБ (все)', 'КЛУБ', selected)])
+  keyboard.push([btn('ПРЕМИУМ (без Базы)', 'ПРЕМИУМ', selected)])
+
+  // Тарифы в 2 колонки
+  keyboard.push([btn('БАЗА', 'БАЗА', selected), btn('ПРАКТИКА', 'ПРАКТИКА', selected)])
+  keyboard.push([btn('ПРАКТИКА+', 'ПРАКТИКА+', selected), btn('СОПР.', 'СОПРОВОЖДЕНИЕ', selected)])
+
+  // Тест отдельно
+  keyboard.push([btn('ТЕСТ', 'ТЕСТ', selected)])
+
+  // Кнопки действия
+  keyboard.push([
     Markup.button.callback('✅ Разослать', 'broadcast:send'),
     Markup.button.callback('❌ Отменить', 'broadcast:cancel'),
   ])
-  return Markup.inlineKeyboard(rows)
+
+  return Markup.inlineKeyboard(keyboard)
+}
+
+function buildText(selected) {
+  const selectedCount = selected.length
+  return selectedCount > 0
+    ? `👥 *Выберите тарифы для рассылки:*\n\n✓ Выбрано: ${selectedCount}`
+    : '👥 *Выберите тарифы для рассылки:*'
 }
 
 broadcastSelectScene.enter(async (ctx) => {
   ctx.session.selectedTariffs = []
-  await ctx.reply('👥 *Выберите тарифы для рассылки:*', {
+  await ctx.reply(buildText([]), {
     parse_mode: 'Markdown',
     ...buildKeyboard([]),
   })
@@ -37,7 +57,10 @@ broadcastSelectScene.action(/^tariff:(.+)$/, async (ctx) => {
   }
 
   await ctx.answerCbQuery()
-  await ctx.editMessageReplyMarkup(buildKeyboard(ctx.session.selectedTariffs).reply_markup)
+  await ctx.editMessageText(buildText(ctx.session.selectedTariffs), {
+    parse_mode: 'Markdown',
+    ...buildKeyboard(ctx.session.selectedTariffs),
+  })
 })
 
 broadcastSelectScene.action('broadcast:send', async (ctx) => {
