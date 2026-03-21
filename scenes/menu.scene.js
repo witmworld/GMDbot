@@ -4,7 +4,7 @@ import { showMainMenu } from '../utils/menu.js'
 export const menuScene = new Scenes.BaseScene('MENU')
 
 menuScene.enter(async (ctx) => {
-  console.log('Entering scene: MENU')
+  console.log('[MENU] Scene entered for user:', ctx.from.id)
   await showMainMenu(ctx)
 })
 
@@ -19,6 +19,7 @@ menuScene.on('callback_query', async (ctx) => {
 })
 
 menuScene.on('text', async (ctx) => {
+  console.log('[MENU] Text received:', ctx.message.text)
   if (ctx.message.text === 'Админ Кабала') {
     return ctx.scene.enter('ADMIN_RECEIPTS')
   }
