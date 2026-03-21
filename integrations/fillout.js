@@ -82,6 +82,33 @@ export async function getClubMembers(tableId = CLUB_TABLE_ID) {
   return data.records
 }
 
+export async function getMembersByTariffs(tariffs) {
+  const allMembers = await getClubMembers()
+  const includeAll     = tariffs.includes('КЛУБ')
+  const includePremium = tariffs.includes('ПРЕМИУМ')
+  const specific = tariffs.filter(t => t !== 'КЛУБ' && t !== 'ПРЕМИУМ')
+
+  const seen = new Set()
+  const result = []
+  for (const m of allMembers) {
+    const tgId       = m.fields['telegram_id']
+    const userTariff = m.fields['Тариф']
+    if (!tgId) continue
+    if (seen.has(tgId)) continue
+
+    let include = false
+    if (includeAll) include = true
+    else if (includePremium && userTariff !== 'БАЗА') include = true
+    else if (specific.includes(userTariff)) include = true
+
+    if (include) {
+      seen.add(tgId)
+      result.push(m)
+    }
+  }
+  return result
+}
+
 export async function getClubMember(telegramId) {
   const members = await getClubMembers()
   return members.find(m => String(m.fields['telegram_id']) === String(telegramId))?.fields || null

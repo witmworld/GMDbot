@@ -1,6 +1,5 @@
 import { Scenes, Markup } from 'telegraf'
 import OpenAI from 'openai'
-import { getClubMembers } from '../integrations/fillout.js'
 import { createCalendarEvent } from '../integrations/googleCalendar.js'
 
 const ADMIN_ID = 867023416
@@ -40,61 +39,18 @@ adminCalendarScene.on('callback_query', async (ctx) => {
     return ctx.scene.leave()
   }
 
-  // Step 2 → confirm preview: ask audience
+  // Step 2 → confirm: create Google Calendar events, prepare messages, enter BROADCAST_SELECT
   if (data === 'cal:confirm') {
-    if (!ctx.session.adminCalEvents?.length) {
+    const events = ctx.session.adminCalEvents
+    if (!events?.length) {
       await ctx.reply('❌ Нет событий для создания.')
       return ctx.scene.leave()
     }
-    ctx.session.adminCalStep = 3
-    await ctx.reply(
-      '👥 *Кому разослать события?*',
-      {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([
-          [
-            Markup.button.callback('📢 КЛУБ (все участники)', 'cal:audience:club'),
-            Markup.button.callback('🧪 ТЕСТ', 'cal:audience:test'),
-          ],
-          [Markup.button.callback('❌ Отменить', 'cal:cancel')],
-        ]),
-      }
-    )
-    return
-  }
 
-  // Step 3 → audience chosen: create events + broadcast
-  if (data === 'cal:audience:club' || data === 'cal:audience:test') {
-    const events = ctx.session.adminCalEvents
-    if (!events?.length) {
-      await ctx.reply('❌ Нет событий.')
-      return ctx.scene.leave()
-    }
-
-    const audience = data === 'cal:audience:club' ? 'club' : 'test'
-    const label    = audience === 'club' ? 'КЛУБ (все)' : 'ТЕСТ'
-    await ctx.reply(`⏳ Создаю события и рассылаю для *${label}*...`, { parse_mode: 'Markdown' })
-
-    let members
-    try {
-      members = await getClubMembers()
-    } catch (e) {
-      await ctx.reply('❌ Не удалось получить участников: ' + e.message)
-      return ctx.scene.leave()
-    }
-
-    const targets = members.filter(m => {
-      const tgId   = m.fields['telegram_id']
-      const tariff = m.fields['Тариф']
-      if (!tgId) return false
-      if (audience === 'club') return true
-      return tariff === 'ТЕСТ'
-    })
-
-    console.log(`[AdminCal] Audience: ${label}, targets: ${targets.length}`)
+    await ctx.reply('⏳ Создаю события в Google Calendar...')
 
     let createdCount = 0
-    let sentCount    = 0
+    const messages = []
 
     for (const event of events) {
       // Create in Google Calendar
@@ -106,43 +62,27 @@ adminCalendarScene.on('callback_query', async (ctx) => {
         console.error('[AdminCal] createCalendarEvent failed:', e.message)
       }
 
-      // Build calendar links
+      // Build message
       const googleLink  = buildGoogleLink(event)
       const outlookLink = buildOutlookLink(event)
 
-      // Build message text
-      let msg = ''
-      if (event.date || event.time) msg += `📅 ${event.date || ''} ${event.time || ''}`.trim() + '\n'
-      msg += `*${event.title}*`
-      if (event.description) msg += `\n\n${event.description}`
-      if (event.link)        msg += `\n\n🔗 Zoom: ${event.link}`
-      msg += '\n\n📆 Добавить в календарь:'
+      let text = ''
+      if (event.date || event.time) text += `📅 ${event.date || ''} ${event.time || ''}`.trim() + '\n'
+      text += `*${event.title}*`
+      if (event.description) text += `\n\n${event.description}`
+      if (event.link)        text += `\n\n🔗 Zoom: ${event.link}`
+      text += '\n\n📆 Добавить в календарь:'
 
       const calButtons = Markup.inlineKeyboard([
-        [
-          Markup.button.url('Google', googleLink),
-          Markup.button.url('Outlook', outlookLink),
-        ],
+        [Markup.button.url('Google', googleLink), Markup.button.url('Outlook', outlookLink)],
       ])
 
-      for (const member of targets) {
-        try {
-          await ctx.telegram.sendMessage(
-            String(member.fields['telegram_id']),
-            msg,
-            { parse_mode: 'Markdown', ...calButtons }
-          )
-          sentCount++
-        } catch (e) {
-          console.error('[AdminCal] sendMessage failed for', member.fields['telegram_id'], e.message)
-        }
-      }
+      messages.push({ text, extra: { parse_mode: 'Markdown', ...calButtons } })
     }
 
-    await ctx.reply(
-      `✅ Готово!\n\n📅 Создано событий: ${createdCount}/${events.length}\n👥 Отправлено: ${sentCount} из ${targets.length} участников`
-    )
-    return ctx.scene.leave()
+    await ctx.reply(`✅ Создано ${createdCount}/${events.length} событий в Google Calendar`)
+    ctx.session.broadcastData = { messages }
+    return ctx.scene.enter('BROADCAST_SELECT')
   }
 })
 

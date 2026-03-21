@@ -79,8 +79,14 @@ adminPaymentLinkScene.on('text', async (ctx) => {
 // Рассылка
 adminPaymentLinkScene.action('payment_link:broadcast', async (ctx) => {
   await ctx.answerCbQuery()
-  // TODO: Переход к выбору тарифов (чекбоксы)
-  await ctx.reply('📤 Функция рассылки в разработке...')
+  const { title, amount, url } = ctx.session.paymentLinkData
+  ctx.session.broadcastData = {
+    messages: [{
+      text: `💳 ${title}\n💰 ₪${amount}\n\n🔗 ${url}`,
+      extra: {}
+    }]
+  }
+  return ctx.scene.enter('BROADCAST_SELECT')
 })
 
 // Готово
