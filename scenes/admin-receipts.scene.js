@@ -46,9 +46,12 @@ adminReceiptsScene.on('document', async (ctx) => {
         const res = await fetch(fileLink.href)
         const buffer = Buffer.from(await res.arrayBuffer())
 
-        const workbook = XLSX.read(buffer, { type: 'buffer' })
+        console.log('[Admin Receipts] File size:', buffer.length)
+        console.log('[Admin Receipts] Reading Excel...')
+        const workbook = XLSX.read(buffer)
         const sheet = workbook.Sheets[workbook.SheetNames[0]]
         rows = XLSX.utils.sheet_to_json(sheet)
+        console.log('[Admin Receipts] Total rows:', rows.length)
       } catch (err) {
         console.error('❌ Ошибка чтения Excel:', err)
         await ctx.reply(`❌ Не удалось прочитать файл: ${err.message}`, backButton)
