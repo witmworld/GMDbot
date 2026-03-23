@@ -23,64 +23,89 @@ adminReceiptsScene.on('callback_query', async (ctx) => {
 adminReceiptsScene.on('document', async (ctx) => {
   const file = ctx.message.document
 
-  if (!file.file_name?.endsWith('.xlsx')) {
-    return ctx.reply('❌ Нужен файл в формате .xlsx', backButton)
+  if (!file.file_name?.match(/\.(xlsx|xls)$/i)) {
+    return ctx.reply('❌ Загрузите Excel файл', backButton)
   }
 
-  let rows
-  try {
-    const fileLink = await ctx.telegram.getFileLink(file.file_id)
-    const res = await fetch(fileLink.href)
-    const buffer = Buffer.from(await res.arrayBuffer())
-
-    const workbook = XLSX.read(buffer, { type: 'buffer' })
-    const sheet = workbook.Sheets[workbook.SheetNames[0]]
-    rows = XLSX.utils.sheet_to_json(sheet)
-  } catch (err) {
-    console.error('❌ Ошибка чтения Excel:', err)
-    return ctx.reply(`❌ Не удалось прочитать файл: ${err.message}`, backButton)
+  // Защита от повторной обработки
+  if (ctx.session.processingReceipts) {
+    return ctx.reply('⏳ Файл уже обрабатывается')
   }
 
-  const successful = rows.filter(r => String(r.status).toLowerCase() === 'successful')
+  ctx.session.processingReceipts = true
 
-  if (successful.length === 0) {
-    return ctx.reply(`В файле ${rows.length} строк, но ни одна со статусом "successful".`, backButton)
-  }
+  // СРАЗУ отвечаем пользователю
+  await ctx.reply('✅ Файл получен! Начинаю обработку...')
 
-  await ctx.reply(`Найдено ${successful.length} успешных платежей из ${rows.length}. Начинаю создание квитанций...`)
-
-  let created = 0
-  const errors = []
-
-  for (const row of successful) {
+  // Обработка в фоне (не блокирует webhook)
+  setImmediate(async () => {
     try {
-      await createReceipt({
-        clientName: row.client_name || '',
-        clientEmail: row.client_email || '',
-        clientPhone: row.client_phone || '',
-        amount: Number(row.amount) || 0,
-        description: 'תרומה',
-        orderId: row.order_id || ''
-      })
-      created++
+      let rows
+      try {
+        const fileLink = await ctx.telegram.getFileLink(file.file_id)
+        const res = await fetch(fileLink.href)
+        const buffer = Buffer.from(await res.arrayBuffer())
 
-      if (created % 5 === 0 || created === successful.length) {
-        await ctx.reply(`Создаю квитанции... ${created}/${successful.length}`)
+        const workbook = XLSX.read(buffer, { type: 'buffer' })
+        const sheet = workbook.Sheets[workbook.SheetNames[0]]
+        rows = XLSX.utils.sheet_to_json(sheet)
+      } catch (err) {
+        console.error('❌ Ошибка чтения Excel:', err)
+        await ctx.reply(`❌ Не удалось прочитать файл: ${err.message}`, backButton)
+        ctx.session.processingReceipts = false
+        return
       }
-    } catch (err) {
-      console.error(`❌ Ошибка квитанции для ${row.client_name}:`, err)
-      errors.push(`${row.client_name || row.client_email || '?'}: ${err.message}`)
+
+      const successful = rows.filter(r => String(r.status).toLowerCase() === 'successful')
+
+      if (successful.length === 0) {
+        await ctx.reply(`В файле ${rows.length} строк, но ни одна со статусом "successful".`, backButton)
+        ctx.session.processingReceipts = false
+        return
+      }
+
+      await ctx.reply(`Найдено ${successful.length} успешных платежей из ${rows.length}. Создаю квитанции...`)
+
+      let created = 0
+      const errors = []
+
+      for (const row of successful) {
+        try {
+          await createReceipt({
+            clientName: row.client_name || '',
+            clientEmail: row.client_email || '',
+            clientPhone: row.client_phone || '',
+            amount: Number(row.amount) || 0,
+            description: 'תרומה',
+            orderId: row.order_id || ''
+          })
+          created++
+
+          if (created % 5 === 0 || created === successful.length) {
+            await ctx.reply(`Создаю квитанции... ${created}/${successful.length}`)
+          }
+        } catch (err) {
+          console.error(`❌ Ошибка квитанции для ${row.client_name}:`, err)
+          errors.push(`${row.client_name || row.client_email || '?'}: ${err.message}`)
+        }
+      }
+
+      let summary = `✅ Готово! Создано ${created} квитанций из ${successful.length}.`
+
+      if (errors.length > 0) {
+        summary += `\n\n❌ Ошибки (${errors.length}):\n` + errors.slice(0, 10).join('\n')
+        if (errors.length > 10) {
+          summary += `\n...и ещё ${errors.length - 10}`
+        }
+      }
+
+      await ctx.reply(summary, backButton)
+      ctx.session.processingReceipts = false
+
+    } catch (error) {
+      console.error('[Admin Receipts] Error:', error)
+      await ctx.reply('❌ Ошибка обработки')
+      ctx.session.processingReceipts = false
     }
-  }
-
-  let summary = `✅ Готово! Создано ${created} квитанций из ${successful.length}.`
-
-  if (errors.length > 0) {
-    summary += `\n\n❌ Ошибки (${errors.length}):\n` + errors.slice(0, 10).join('\n')
-    if (errors.length > 10) {
-      summary += `\n...и ещё ${errors.length - 10}`
-    }
-  }
-
-  await ctx.reply(summary, backButton)
+  })
 })
