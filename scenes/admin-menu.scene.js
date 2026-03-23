@@ -19,6 +19,7 @@ adminMenuScene.enter(async (ctx) => {
         [Markup.button.callback('📅 Админ Календарь', 'admin:calendar')],
         [Markup.button.callback('🧾 Админ Кабала', 'admin:receipts')],
         [Markup.button.callback('💳 Создать ссылку на оплату', 'admin:payment_link')],
+        [Markup.button.callback('🗑 Отменить квитанции', 'admin:cancel_receipts')],
         [Markup.button.callback('⬅️ Главное меню', 'admin:exit')]
       ])
     }
@@ -39,6 +40,11 @@ adminMenuScene.action('admin:receipts', async (ctx) => {
 adminMenuScene.action('admin:payment_link', async (ctx) => {
   await ctx.answerCbQuery()
   return ctx.scene.enter('ADMIN_PAYMENT_LINK')
+})
+
+adminMenuScene.action('admin:cancel_receipts', async (ctx) => {
+  await ctx.answerCbQuery()
+  return ctx.scene.enter('ADMIN_CANCEL_RECEIPTS')
 })
 
 adminMenuScene.action('admin:exit', async (ctx) => {

@@ -80,3 +80,24 @@ export async function createReceipt({ clientName, clientEmail, clientPhone, amou
 
   return data
 }
+
+export async function cancelGreenInvoiceDocument(documentId) {
+  const token = await getToken()
+
+  const res = await fetch(`${BASE_URL}/documents/${documentId}/cancel`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({})
+  })
+
+  const data = await res.json()
+
+  if (data.errorCode) {
+    throw new Error(`GreenInvoice cancel failed: ${data.errorCode} — ${data.errorMessage}`)
+  }
+
+  return data
+}
