@@ -23,6 +23,12 @@ adminReceiptsScene.on('callback_query', async (ctx) => {
 adminReceiptsScene.on('document', async (ctx) => {
   const file = ctx.message.document
 
+  console.log('[Admin Receipts] ===== FILE RECEIVED =====')
+  console.log('[Admin Receipts] User:', ctx.from.id, ctx.from.username)
+  console.log('[Admin Receipts] File name:', file.file_name)
+  console.log('[Admin Receipts] File size:', file.file_size)
+  console.log('[Admin Receipts] File ID:', file.file_id)
+
   if (!file.file_name?.match(/\.(xlsx|xls)$/i)) {
     return ctx.reply('❌ Загрузите Excel файл', backButton)
   }
@@ -43,15 +49,17 @@ adminReceiptsScene.on('document', async (ctx) => {
       let rows
       try {
         const fileLink = await ctx.telegram.getFileLink(file.file_id)
+        console.log('[Admin Receipts] File link:', fileLink.href)
+
         const res = await fetch(fileLink.href)
         const buffer = Buffer.from(await res.arrayBuffer())
+        console.log('[Admin Receipts] Downloaded buffer size:', buffer.length)
 
-        console.log('[Admin Receipts] File size:', buffer.length)
         console.log('[Admin Receipts] Reading Excel...')
         const workbook = XLSX.read(buffer)
         const sheet = workbook.Sheets[workbook.SheetNames[0]]
         rows = XLSX.utils.sheet_to_json(sheet)
-        console.log('[Admin Receipts] Total rows:', rows.length)
+        console.log('[Admin Receipts] Total rows read from Excel:', rows.length)
       } catch (err) {
         console.error('❌ Ошибка чтения Excel:', err)
         await ctx.reply(`❌ Не удалось прочитать файл: ${err.message}`, backButton)
@@ -60,6 +68,7 @@ adminReceiptsScene.on('document', async (ctx) => {
       }
 
       const successful = rows.filter(r => String(r.status).toLowerCase() === 'successful')
+      console.log('[Admin Receipts] Successful rows:', successful.length)
 
       if (successful.length === 0) {
         await ctx.reply(`В файле ${rows.length} строк, но ни одна со статусом "successful".`, backButton)
