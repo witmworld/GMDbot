@@ -114,6 +114,26 @@ export async function getClubMember(telegramId) {
   return members.find(m => String(m.fields['telegram_id']) === String(telegramId))?.fields || null
 }
 
+export async function getClubMemberRecord(telegramId) {
+  const members = await getClubMembers()
+  return members.find(m => String(m.fields['telegram_id']) === String(telegramId)) || null
+}
+
+export async function setMemberAdminFlag(recordId) {
+  const url = `${BASE_URL}/bases/${FILLOUT_DATABASE_ID}/tables/${CLUB_TABLE_ID}/records/${recordId}`
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${FILLOUT_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ record: { 'Админ': true } }),
+  })
+  const data = await res.json()
+  if (res.status >= 400) throw new Error(`setMemberAdminFlag error: ${JSON.stringify(data)}`)
+  return data
+}
+
 export async function getMessages() {
   const url = `${BASE_URL}/bases/${FILLOUT_DATABASE_ID}/tables/${MESSAGE_TABLE_ID}/records/list`
   const res = await fetch(url, {

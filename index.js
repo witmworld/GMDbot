@@ -21,7 +21,7 @@ import { menuScene } from './scenes/menu.scene.js'
 import { subscribeScene } from './scenes/subscribe.scene.js'
 import { scanGroupMembers } from './utils/group-scanner.js'
 import { startScheduler, checkScheduledMessages } from './utils/scheduler.js'
-import { getTariffs, getClubMembers, getClubMember, createClubMember } from './integrations/fillout.js'
+import { getTariffs, getClubMembers, getClubMember, createClubMember, getClubMemberRecord, setMemberAdminFlag } from './integrations/fillout.js'
 import { findLeadByOrderId, updateLeadPaymentStatus, updateLeadFields } from './integrations/bitrix.js'
 import { createReceipt } from './integrations/greeninvoice.js'
 
@@ -200,6 +200,76 @@ try {
   bot.use(session({ getSessionKey: (ctx) => String(ctx.from?.id) }))
 
   bot.use(stage.middleware())
+
+  bot.command('scan_group', async (ctx) => {
+    if (ctx.chat.type !== 'private') {
+      return ctx.reply('❌ Эта команда работает только в приватном чате с ботом')
+    }
+    if (ctx.from.id !== 867023416) {
+      return ctx.reply('❌ Недостаточно прав')
+    }
+
+    const GROUP_ID = -1003528829419
+
+    try {
+      await ctx.reply('🔍 Сканирую админов группы...')
+
+      const admins = await ctx.telegram.getChatAdministrators(GROUP_ID)
+      console.log('[Scan Group] Found admins:', admins.length)
+
+      let processed = 0
+      let created = 0
+      let updated = 0
+      let errors = 0
+
+      for (const admin of admins) {
+        const user = admin.user
+        if (user.is_bot) {
+          console.log('[Scan Group] Skipping bot:', user.username)
+          continue
+        }
+
+        try {
+          const existing = await getClubMemberRecord(user.id)
+
+          if (existing) {
+            await setMemberAdminFlag(existing.id)
+            console.log('[Scan Group] Updated admin flag:', user.id, user.username)
+            updated++
+          } else {
+            const newRecord = await createClubMember({
+              first_name: user.first_name,
+              last_name: user.last_name,
+              username: user.username,
+              user_id: user.id
+            })
+            if (newRecord?.record?.id) {
+              await setMemberAdminFlag(newRecord.record.id)
+            }
+            console.log('[Scan Group] Created new member:', user.id, user.username)
+            created++
+          }
+
+          processed++
+        } catch (err) {
+          console.error('[Scan Group] Error processing admin:', user.id, err.message)
+          errors++
+        }
+      }
+
+      await ctx.reply(
+        `✅ Сканирование завершено!\n\n` +
+        `Найдено админов: ${admins.length}\n` +
+        `Обработано: ${processed}\n` +
+        `Создано новых: ${created}\n` +
+        `Обновлено флаг Админ: ${updated}\n` +
+        `Ошибок: ${errors}`
+      )
+    } catch (error) {
+      console.error('[Scan Group] Error:', error)
+      await ctx.reply('❌ Ошибка при сканировании группы: ' + error.message)
+    }
+  })
 
   bot.command('debug_admin', async (ctx) => {
     console.log('[DEBUG] ===== COMMAND RECEIVED =====')
