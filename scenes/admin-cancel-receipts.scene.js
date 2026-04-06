@@ -35,14 +35,22 @@ adminCancelReceiptsScene.on('document', async (ctx) => {
   const sheet = workbook.Sheets[workbook.SheetNames[0]]
   const data = xlsx.utils.sheet_to_json(sheet)
 
-  // Найти колонку с Document ID (UUID формат)
+  // Проверить наличие нужной колонки
+  const COLUMN = 'מזהה מסמך'
+  if (data.length > 0 && !(COLUMN in data[0])) {
+    const actualColumns = Object.keys(data[0]).join(', ')
+    console.error('[Cancel Receipts] Column not found. Actual columns:', actualColumns)
+    return ctx.reply(
+      `❌ Колонка "${COLUMN}" не найдена в файле.\n\nКолонки в файле:\n${Object.keys(data[0]).join('\n')}`
+    )
+  }
+
+  // Читать ID строго по имени колонки
   const documentIds = []
   for (const row of data) {
-    for (const value of Object.values(row)) {
-      if (typeof value === 'string' && /^[0-9a-f-]{36}$/i.test(value)) {
-        documentIds.push(value)
-        break
-      }
+    const id = row[COLUMN]
+    if (typeof id === 'string' && id.trim()) {
+      documentIds.push(id.trim())
     }
   }
 

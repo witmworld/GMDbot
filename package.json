@@ -4,7 +4,9 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "scan-admins": "node scripts/scan-admins-dryrun.js",
+    "sync-admins": "node scripts/sync-admins.js"
   },
   "keywords": [],
   "author": "",

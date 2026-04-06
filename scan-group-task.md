@@ -1,138 +1,334 @@
-# Задание для Claude Code: Сканирование админов группы GMD Club
+# Задание для Claude Code: Сканирование админов группы GMD Club (DRY RUN)
 
 ## Контекст
-Бот GMD Club Bot уже имеет команду `/scan_group`, которая сканирует админов в Telegram группе и создаёт записи в Fillout CLUB table.
+Бот GMD Club Bot имеет команду `/scan_group`, которая сканирует админов в Telegram группе.
+Нужно доработать её для ПРОБНОГО запуска (без записи в базу) с проверкой существующих участников в Fillout.
 
 ## Задача
-Запустить команду `/scan_group` для обновления списка админов в базе данных.
+1. Создать скрипт который можно запустить напрямую из терминала
+2. Сканировать админов группы через Telegram API
+3. Для каждого админа проверить совпадения в Fillout CLUB table по:
+   - Имя, фамилия (полное или частичное совпадение)
+   - Электронная почта (полное совпадение)
+   - Ник в ТГ (полное совпадение)
+4. Вывести отчёт: кто найден, кто не найден
+5. **НЕ ЗАПИСЫВАТЬ** в базу данных (dry run mode)
 
 ## Шаги
 
-### 1. Проверить существующую команду
-```bash
-cd ~/gmd-bot
-grep -n "scan_group" index.js
-```
+### 1. Создать standalone скрипт
+Создай файл `scripts/scan-admins-dryrun.js`:
 
-Команда должна быть зарегистрирована и работать.
-
-### 2. Проверить ID группы
-В коде должен быть hardcoded GROUP_ID. Проверь что это правильная группа:
 ```javascript
+import { Telegraf } from 'telegraf'
+import { getClubMembers } from '../integrations/fillout.js'
+
+const BOT_TOKEN = process.env.BOT_TOKEN
 const GROUP_ID = -1003528829419
-```
 
-### 3. Проверить как вызывается команда
-Команда `/scan_group` должна:
-- Работать только в приватном чате сботом (не в группе)
-- Проверять что пользователь — админ (ID: 867023416)
-- Получать список админов через `ctx.telegram.getChatAdministrators(GROUP_ID)`
-- Создавать/обновлять записи в Fillout CLUB table
-
-### 4. Если команда НЕ найдена или сломана
-Создай её заново в `index.js` (ПОСЛЕ middleware, ПЕРЕД bot.launch):
-
-```javascript
-// Scan group admins (только для основного админа в приватном чате)
-bot.command('scan_group', async (ctx) => {
-  // Проверка: только приватный чат
-  if (ctx.chat.type !== 'private') {
-    return ctx.reply('❌ Эта команда работает только в приватном чате с ботом')
-  }
+async function scanAdmins() {
+  console.log('🔍 Scanning group admins (DRY RUN - no database writes)')
+  console.log('Group ID:', GROUP_ID)
+  console.log('')
   
-  // Проверка: только главный админ
-  if (ctx.from.id !== 867023416) {
-    return ctx.reply('❌ Недостаточно прав')
-  }
-  
-  const GROUP_ID = -1003528829419
+  const bot = new Telegraf(BOT_TOKEN)
   
   try {
-    await ctx.reply('🔍 Сканирую админов группы...')
+    // 1. Получить админов из Telegram
+    console.log('[1/3] Getting admins from Telegram...')
+    const admins = await bot.telegram.getChatAdministrators(GROUP_ID)
+    const humanAdmins = admins.filter(a => !a.user.is_bot)
     
-    const admins = await ctx.telegram.getChatAdministrators(GROUP_ID)
+    console.log(`Found ${humanAdmins.length} human admins (${admins.length} total, ${admins.length - humanAdmins.length} bots)`)
+    console.log('')
     
-    console.log('[Scan Group] Found admins:', admins.length)
+    // 2. Получить всех участников из Fillout
+    console.log('[2/3] Getting members from Fillout CLUB table...')
+    const clubMembers = await getClubMembers()
+    console.log(`Found ${clubMembers.length} members in Fillout`)
+    console.log('')
     
-    let processed = 0
-    let created = 0
-    let errors = 0
+    // 3. Проверить каждого админа
+    console.log('[3/3] Matching admins with Fillout members...')
+    console.log('═'.repeat(80))
+    console.log('')
     
-    for (const admin of admins) {
+    const found = []
+    const notFound = []
+    
+    for (const admin of humanAdmins) {
       const user = admin.user
+      const telegramName = `${user.first_name || ''} ${user.last_name || ''}`.trim()
+      const telegramUsername = user.username ? `@${user.username}` : null
+      const telegramId = user.id
       
-      if (user.is_bot) {
-        console.log('[Scan Group] Skipping bot:', user.username)
-        continue
-      }
+      console.log(`👤 Checking: ${telegramName} (${telegramUsername || 'no username'}) [ID: ${telegramId}]`)
       
-      try {
-        // Создать запись в Fillout CLUB table
-        const record = {
-          'Имя, фамилия': `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username || 'Unknown',
-          'Ник в ТГ': user.username ? `@${user.username}` : '',
-          'telegram_id': user.id,
-          'Добавился в чат': 'да',
-          'Админ': true
-        }
-        
-        // Здесь должен быть вызов Fillout API для создания записи
-        // Используй функцию из integrations/fillout.js если есть
-        // Или создай через fetch напрямую
-        
-        console.log('[Scan Group] Processed:', record['Имя, фамилия'])
-        processed++
-        created++
-        
-      } catch (err) {
-        console.error('[Scan Group] Error processing admin:', user.id, err.message)
-        errors++
+      // Поиск совпадений
+      const matches = findMatches(user, clubMembers)
+      
+      if (matches.length > 0) {
+        found.push({ user, matches })
+        console.log(`   ✅ FOUND ${matches.length} match(es):`)
+        matches.forEach(m => {
+          console.log(`      - ${m.member['Имя, фамилия']} | ${m.member['Электронная почта ']} | ${m.member['Ник в ТГ']}`)
+          console.log(`        Matched by: ${m.matchType}`)
+        })
+      } else {
+        notFound.push(user)
+        console.log(`   ❌ NOT FOUND in Fillout`)
       }
+      console.log('')
     }
     
-    await ctx.reply(
-      `✅ Сканирование завершено!\n\n` +
-      `Найдено админов: ${admins.length}\n` +
-      `Обработано: ${processed}\n` +
-      `Создано/обновлено: ${created}\n` +
-      `Ошибок: ${errors}`
-    )
+    // 4. Итоговый отчёт
+    console.log('═'.repeat(80))
+    console.log('📊 SUMMARY')
+    console.log('═'.repeat(80))
+    console.log(`Total admins scanned: ${humanAdmins.length}`)
+    console.log(`Found in Fillout: ${found.length}`)
+    console.log(`NOT found in Fillout: ${notFound.length}`)
+    console.log('')
+    
+    if (notFound.length > 0) {
+      console.log('❌ NOT FOUND:')
+      notFound.forEach(user => {
+        const name = `${user.first_name || ''} ${user.last_name || ''}`.trim()
+        const username = user.username ? `@${user.username}` : 'no username'
+        console.log(`   - ${name} (${username}) [ID: ${user.id}]`)
+      })
+      console.log('')
+    }
+    
+    console.log('✅ DRY RUN COMPLETE - No changes made to database')
     
   } catch (error) {
-    console.error('[Scan Group] Error:', error)
-    await ctx.reply('❌ Ошибка при сканировании группы')
+    console.error('❌ Error:', error.message)
+    process.exit(1)
   }
-})
+  
+  process.exit(0)
+}
+
+// Функция поиска совпадений
+function findMatches(telegramUser, clubMembers) {
+  const matches = []
+  
+  const telegramName = `${telegramUser.first_name || ''} ${telegramUser.last_name || ''}`.trim().toLowerCase()
+  const telegramUsername = telegramUser.username ? telegramUser.username.toLowerCase() : null
+  const telegramId = telegramUser.id
+  
+  for (const member of clubMembers) {
+    const filloutName = (member.fields['Имя, фамилия'] || '').toLowerCase()
+    const filloutEmail = (member.fields['Электронная почта '] || '').toLowerCase()
+    const filloutNick = (member.fields['Ник в ТГ'] || '').toLowerCase()
+    const filloutTelegramId = member.fields['telegram_id']
+    
+    let matchType = null
+    
+    // 1. Точное совпадение по telegram_id (приоритет)
+    if (filloutTelegramId && filloutTelegramId === telegramId) {
+      matchType = 'telegram_id (exact)'
+    }
+    // 2. Точное совпадение по нику
+    else if (telegramUsername && filloutNick.includes(telegramUsername)) {
+      matchType = 'username (exact)'
+    }
+    // 3. Полное совпадение по имени
+    else if (telegramName && filloutName === telegramName) {
+      matchType = 'name (exact)'
+    }
+    // 4. Частичное совпадение по имени (имя содержится в fillout или наоборот)
+    else if (telegramName && filloutName && 
+             (filloutName.includes(telegramName) || telegramName.includes(filloutName))) {
+      matchType = 'name (partial)'
+    }
+    // 5. Совпадение по части имени (first name or last name)
+    else if (telegramUser.first_name && filloutName.includes(telegramUser.first_name.toLowerCase())) {
+      matchType = 'first name (partial)'
+    }
+    
+    if (matchType) {
+      matches.push({ member, matchType })
+    }
+  }
+  
+  return matches
+}
+
+// Запуск
+scanAdmins()
 ```
 
-### 5. Деплой
+### 2. Обновить package.json
+Добавь script для удобного запуска:
+
+### 2. Обновить package.json
+Добавь script для удобного запуска:
+
+```json
+{
+  "scripts": {
+    "scan-admins": "node scripts/scan-admins-dryrun.js"
+  }
+}
+```
+
+### 3. Проверить integrations/fillout.js
+Убедись что функция `getClubMembers()` существует и возвращает всех участников из CLUB table.
+
+Если функции нет — создай её:
+
+```javascript
+export async function getClubMembers() {
+  const response = await fetch(
+    `https://api.fillout.com/v1/api/databases/${FILLOUT_DATABASE_ID}/tables/tkDXcWAVooU/records`,
+    {
+      headers: {
+        'Authorization': `Bearer ${FILLOUT_API_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    }
+  )
+  
+  if (!response.ok) {
+    throw new Error(`Fillout API error: ${response.status}`)
+  }
+  
+  const data = await response.json()
+  return data.items || []
+}
+```
+
+### 4. Запуск скрипта
+
+**Из терминала:**
 ```bash
-git add .
-git commit -m 'Add/fix scan_group command'
-git push
+cd ~/gmd-bot
+npm run scan-admins
 ```
 
-### 6. Тестирование
-После деплоя:
-1. Открой Telegram
-2. Найди бота @GMD_club_bot
-3. Напиши `/scan_group`
-4. Проверь что команда отработала
-5. Проверь Railway logs для деталей
+**Или напрямую:**
+```bash
+cd ~/gmd-bot
+node scripts/scan-admins-dryrun.js
+```
 
-## Проверка результата
-1. Зайди в Fillout → CLUB table
-2. Проверь что появились новые записи с `Админ: true`
-3. Проверь что `telegram_id` заполнены
+### 5. Ожидаемый результат
 
-## Важно
-- Команда должна работать ТОЛЬКО в приватном чате (не в группе)
-- Доступ ТОЛЬКО для ID: 867023416
-- Боты должны ИГНОРИРОВАТЬСЯ (is_bot: true)
-- Логи должны показывать сколько админов найдено и обработано
+Скрипт выведет:
+```
+🔍 Scanning group admins (DRY RUN - no database writes)
+Group ID: -1003528829419
+
+[1/3] Getting admins from Telegram...
+Found 48 human admins (50 total, 2 bots)
+
+[2/3] Getting members from Fillout CLUB table...
+Found 120 members in Fillout
+
+[3/3] Matching admins with Fillout members...
+════════════════════════════════════════════════════════════════════════════════
+
+👤 Checking: Yuri Gold (@yuridnl) [ID: 867023416]
+   ✅ FOUND 1 match(es):
+      - Yuri Gold | yuridnl68@gmail.com | @yuridnl
+        Matched by: telegram_id (exact)
+
+👤 Checking: Diana Devora (@dn_glv) [ID: 335680136]
+   ✅ FOUND 1 match(es):
+      - Diana Broitman | diana.broitman@gmail.com | 
+        Matched by: first name (partial)
+
+👤 Checking: Евгения (@Evgeniya_Reizin) [ID: 398770662]
+   ✅ FOUND 1 match(es):
+      - Евгения Рейзин | eugen5068@gmail.com | @Evgeniya_Reizin
+        Matched by: username (exact)
+
+👤 Checking: Alexander (@shurivich) [ID: 931994330]
+   ❌ NOT FOUND in Fillout
+
+════════════════════════════════════════════════════════════════════════════════
+📊 SUMMARY
+════════════════════════════════════════════════════════════════════════════════
+Total admins scanned: 48
+Found in Fillout: 45
+NOT found in Fillout: 3
+
+❌ NOT FOUND:
+   - Alexander Ivanov (@ivanov_alex) [ID: 123456789]
+   - Maria Petrova (no username) [ID: 987654321]
+   - Sergey (no username) [ID: 555666777]
+
+✅ DRY RUN COMPLETE - No changes made to database
+```
+
+### 6. Анализ результатов
+
+После запуска проверь:
+1. **Сколько админов найдено** — должно быть ~48-50
+2. **Сколько совпало с Fillout** — ожидаем 80-90%
+3. **Кто не найден** — это новые админы или ошибки в данных?
+4. **Типы совпадений:**
+   - `telegram_id (exact)` — самый надёжный
+   - `username (exact)` — надёжный
+   - `name (exact)` — надёжный
+   - `name (partial)` — требует проверки
+   - `first name (partial)` — может быть ложное срабатывание
+
+### 7. Следующие шаги (после проверки)
+
+**Если результаты хорошие:**
+- Создадим версию скрипта которая ЗАПИСЫВАЕТ в Fillout
+- Добавим обновление поля "Админ": true
+- Добавим заполнение telegram_id если его нет
+
+**Если есть проблемы:**
+- Уточним алгоритм поиска
+- Добавим больше способов сопоставления
+- Исключим ложные срабатывания
+
+## Проверка кода перед запуском
+
+Claude Code должен:
+1. ✅ Создать файл `scripts/scan-admins-dryrun.js`
+2. ✅ Проверить наличие `getClubMembers()` в `integrations/fillout.js`
+3. ✅ Добавить npm script в `package.json`
+4. ✅ Показать git diff перед commit
+5. ✅ НЕ ДЕЛАТЬ commit/push пока не проверим результаты
+
+## Важные замечания
+
+⚠️ **Это DRY RUN** — скрипт НЕ меняет базу данных, только показывает результаты
+
+⚠️ **GROUP_ID** должен быть правильным: `-1003528829419`
+
+⚠️ **Fillout поле email** содержит ПРОБЕЛ в конце: `'Электронная почта '`
+
+⚠️ **Алгоритм сопоставления** может давать ложные срабатывания при частичном совпадении имён
+
+⚠️ **Боты исключаются** автоматически (is_bot: true)
 
 ## Если возникают ошибки
-1. Проверь что бот добавлен в группу как админ
-2. Проверь GROUP_ID (должен начинаться с -100)
-3. Проверь Fillout API credentials в env
-4. Посмотри логи Railway для деталей ошибки
+
+**Error: Cannot find module 'telegraf'**
+```bash
+npm install
+```
+
+**Error: Unauthorized (Fillout API)**
+```bash
+# Проверь env переменные
+echo $FILLOUT_API_KEY
+```
+
+**Error: Bot token invalid**
+```bash
+# Проверь BOT_TOKEN
+echo $BOT_TOKEN
+```
+
+**Error: GROUP_ID not found**
+- Проверь что бот добавлен в группу
+- Проверь что GROUP_ID начинается с `-100`
+- Проверь что бот имеет права админа в группе
