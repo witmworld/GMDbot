@@ -30,27 +30,49 @@ adminCancelReceiptsScene.on('document', async (ctx) => {
   const response = await fetch(fileLink.href)
   const buffer = await response.arrayBuffer()
 
-  // Прочитать Excel
-  const workbook = xlsx.read(buffer)
+  // Прочитать Excel с явным указанием кодировки для иврита
+  const workbook = xlsx.read(buffer, { type: 'buffer', codepage: 1255 })
   const sheet = workbook.Sheets[workbook.SheetNames[0]]
   const data = xlsx.utils.sheet_to_json(sheet)
 
-  // Проверить наличие нужной колонки
+  // Лог реальных колонок после декодирования
   const COLUMN = 'מזהה מסמך'
-  if (data.length > 0 && !(COLUMN in data[0])) {
-    const actualColumns = Object.keys(data[0]).join(', ')
-    console.error('[Cancel Receipts] Column not found. Actual columns:', actualColumns)
-    return ctx.reply(
-      `❌ Колонка "${COLUMN}" не найдена в файле.\n\nКолонки в файле:\n${Object.keys(data[0]).join('\n')}`
-    )
+  const FALLBACK_INDEX = 13 // 14-я колонка (индекс 13)
+
+  if (data.length > 0) {
+    const cols = Object.keys(data[0])
+    console.log('[Cancel Receipts] Columns after decode:', cols)
+    console.log('[Cancel Receipts] Looking for:', COLUMN)
+    console.log('[Cancel Receipts] Column found by name:', COLUMN in data[0])
   }
 
-  // Читать ID строго по имени колонки
+  // Читать по имени колонки, fallback — по индексу 13
+  const rawRows = xlsx.utils.sheet_to_json(sheet, { header: 1 })
+  const useByName = data.length > 0 && (COLUMN in data[0])
+
   const documentIds = []
-  for (const row of data) {
-    const id = row[COLUMN]
-    if (typeof id === 'string' && id.trim()) {
-      documentIds.push(id.trim())
+
+  if (useByName) {
+    console.log('[Cancel Receipts] Reading by column name')
+    for (const row of data) {
+      const id = row[COLUMN]
+      if (typeof id === 'string' && id.trim()) documentIds.push(id.trim())
+    }
+  } else {
+    console.log(`[Cancel Receipts] Fallback: reading by index ${FALLBACK_INDEX}`)
+    for (const row of rawRows.slice(1)) { // пропустить заголовок
+      const id = row[FALLBACK_INDEX]
+      if (typeof id === 'string' && id.trim()) documentIds.push(id.trim())
+    }
+    // Сообщить какие реальные колонки нашли
+    if (data.length > 0) {
+      const cols = Object.keys(data[0])
+      const col14 = rawRows[0]?.[FALLBACK_INDEX] ?? '—'
+      await ctx.reply(
+        `⚠️ Колонка "${COLUMN}" не найдена по имени — читаю по индексу 13.\n` +
+        `14-я колонка в файле: "${col14}"\n\n` +
+        `Все колонки:\n${cols.join('\n')}`
+      )
     }
   }
 
