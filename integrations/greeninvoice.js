@@ -125,7 +125,8 @@ export async function cancelGreenInvoiceDocument({ id, name, email, amount }) {
         {
           type: 10,
           price: amount || 0,
-          currency: 'ILS'
+          currency: 'ILS',
+          date: new Date().toISOString().split('T')[0]
         }
       ]
     })
