@@ -93,16 +93,29 @@ export async function cancelGreenInvoiceDocument(documentId) {
 
   console.log('[GreenInvoice Cancel] documentId:', JSON.stringify(documentId), 'length:', documentId.length)
 
-  const res = await fetch(`${BASE_URL}/documents/${documentId}/cancel`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify({})
-  })
+  const url = `${BASE_URL}/documents/${documentId}/cancel`
+  console.log('[GreenInvoice Cancel] Full URL:', url)
 
-  const data = await res.json()
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  }
+
+  // Попытка 1: PUT /cancel с пустым телом
+  let res = await fetch(url, { method: 'PUT', headers, body: JSON.stringify({}) })
+  let data = await res.json()
+
+  if (data.errorCode && res.status === 404) {
+    // Попытка 2: PUT /cancel с reason
+    console.log('[GreenInvoice Cancel] 404 on empty body, retrying with reason...')
+    res = await fetch(url, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ reason: 'ביטול שגיאה' })
+    })
+    data = await res.json()
+    console.log('[GreenInvoice Cancel] Retry response:', res.status, JSON.stringify(data))
+  }
 
   if (data.errorCode) {
     console.log('[GreenInvoice Cancel] Error response:', res.status, JSON.stringify(data))
