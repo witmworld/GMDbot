@@ -1,6 +1,7 @@
 import { Scenes, Markup } from 'telegraf'
 import fetch from 'node-fetch'
 import * as xlsx from 'xlsx'
+import iconv from 'iconv-lite'
 import { cancelGreenInvoiceDocument } from '../integrations/greeninvoice.js'
 
 export const adminCancelReceiptsScene = new Scenes.BaseScene('ADMIN_CANCEL_RECEIPTS')
@@ -30,7 +31,7 @@ adminCancelReceiptsScene.on('document', async (ctx) => {
   const response = await fetch(fileLink.href)
   const buffer = await response.arrayBuffer()
 
-  // Прочитать Excel — raw массив строк для ручного декодирования заголовков
+  // Прочитать Excel как raw массив для ручного декодирования заголовков
   const workbook = xlsx.read(buffer, { type: 'buffer' })
   const sheet = workbook.Sheets[workbook.SheetNames[0]]
   const rawRows = xlsx.utils.sheet_to_json(sheet, { header: 1 })
@@ -38,34 +39,38 @@ adminCancelReceiptsScene.on('document', async (ctx) => {
   const COLUMN = 'מזהה מסמך'
   const FALLBACK_INDEX = 13 // 14-я колонка (индекс 13)
 
-  // Перекодировать заголовки: xlsx иногда читает UTF-8 байты как latin1
-  const toHebrew = (str) => {
+  // Декодировать заголовок через iconv-lite из Windows-1255
+  const decodeHeader = (str) => {
     if (typeof str !== 'string') return str
-    try { return Buffer.from(str, 'latin1').toString('utf8') } catch { return str }
+    try {
+      return iconv.decode(Buffer.from(str, 'binary'), 'win1255')
+    } catch {
+      return str
+    }
   }
 
   const rawHeaders = rawRows[0] ?? []
-  const decodedHeaders = rawHeaders.map(toHebrew)
+  const decodedHeaders = rawHeaders.map(decodeHeader)
 
   console.log('[Cancel Receipts] Raw headers:', rawHeaders)
-  console.log('[Cancel Receipts] Decoded headers:', decodedHeaders)
+  console.log('[Cancel Receipts] Decoded (win1255) headers:', decodedHeaders)
 
-  // Найти индекс нужной колонки по имени (после декодирования)
+  // Найти индекс нужной колонки по декодированному имени
   const colIndex = decodedHeaders.indexOf(COLUMN)
   const useIndex = colIndex !== -1 ? colIndex : FALLBACK_INDEX
 
-  console.log(`[Cancel Receipts] Column "${COLUMN}" → index ${colIndex !== -1 ? colIndex : `not found, fallback to ${FALLBACK_INDEX}`}`)
-  console.log(`[Cancel Receipts] 14th column header: "${decodedHeaders[FALLBACK_INDEX]}"`)
+  console.log(`[Cancel Receipts] Column "${COLUMN}" → ${colIndex !== -1 ? `index ${colIndex}` : `NOT FOUND, fallback to index ${FALLBACK_INDEX}`}`)
+  console.log(`[Cancel Receipts] 14th column decoded: "${decodedHeaders[FALLBACK_INDEX] ?? '—'}"`)
 
   if (colIndex === -1) {
     await ctx.reply(
-      `⚠️ Колонка "${COLUMN}" не найдена по имени — читаю по индексу ${FALLBACK_INDEX}.\n` +
+      `⚠️ Колонка "${COLUMN}" не найдена — читаю по индексу ${FALLBACK_INDEX}.\n` +
       `14-я колонка: "${decodedHeaders[FALLBACK_INDEX] ?? '—'}"\n\n` +
       `Все заголовки:\n${decodedHeaders.join('\n')}`
     )
   }
 
-  // Читать данные по найденному индексу
+  // Читать данные по найденному индексу (значения — не заголовки, не перекодируем)
   const documentIds = []
   for (const row of rawRows.slice(1)) {
     const id = row[useIndex]
