@@ -70,17 +70,31 @@ adminCancelReceiptsScene.on('document', async (ctx) => {
     )
   }
 
-  // Читать данные по найденному индексу (значения — не заголовки, не перекодируем)
-  const documentIds = []
+  // Найти индексы колонок клиента
+  const COL_NAME  = 'לקוח'
+  const COL_EMAIL = 'מייל לקוח'
+  const nameIndex  = decodedHeaders.indexOf(COL_NAME)
+  const emailIndex = decodedHeaders.indexOf(COL_EMAIL)
+  console.log(`[Cancel Receipts] Name column "${COL_NAME}" → index ${nameIndex}`)
+  console.log(`[Cancel Receipts] Email column "${COL_EMAIL}" → index ${emailIndex}`)
+
+  // Читать данные по найденным индексам
+  const receipts = []
   for (const row of rawRows.slice(1)) {
     const id = row[useIndex]
-    if (typeof id === 'string' && id.trim()) documentIds.push(id.trim())
+    if (typeof id === 'string' && id.trim()) {
+      receipts.push({
+        id:    id.trim(),
+        name:  nameIndex !== -1 && row[nameIndex] ? String(row[nameIndex]).trim() : '',
+        email: emailIndex !== -1 && row[emailIndex] ? String(row[emailIndex]).trim() : 'email@gmail.com',
+      })
+    }
   }
 
-  ctx.session.receiptIds = documentIds
+  ctx.session.receiptIds = receipts
 
   await ctx.reply(
-    `📋 Найдено квитанций: ${documentIds.length}\n\n⚠️ Это действие нельзя отменить!`,
+    `📋 Найдено квитанций: ${receipts.length}\n\n⚠️ Это действие нельзя отменить!`,
     Markup.inlineKeyboard([
       [Markup.button.callback('✅ Отменить все', 'cancel:confirm')],
       [Markup.button.callback('❌ Отмена', 'cancel:abort')]
@@ -92,21 +106,21 @@ adminCancelReceiptsScene.action('cancel:confirm', async (ctx) => {
   await ctx.answerCbQuery()
   await ctx.reply('⏳ Отменяю квитанции...')
 
-  const ids = ctx.session.receiptIds
+  const receipts = ctx.session.receiptIds
   let success = 0
   let errors = 0
 
-  for (const id of ids) {
+  for (const receipt of receipts) {
     try {
-      await cancelGreenInvoiceDocument(id)
+      await cancelGreenInvoiceDocument(receipt)
       success++
 
       // Показывать прогресс каждые 50 квитанций
       if (success % 50 === 0) {
-        await ctx.reply(`⏳ Обработано: ${success}/${ids.length}`)
+        await ctx.reply(`⏳ Обработано: ${success}/${receipts.length}`)
       }
     } catch (err) {
-      console.error('[Cancel Receipt] Error:', id, err)
+      console.error('[Cancel Receipt] Error:', receipt.id, err)
       errors++
     }
 
@@ -116,7 +130,7 @@ adminCancelReceiptsScene.action('cancel:confirm', async (ctx) => {
 
   await ctx.reply(
     `✅ Готово!\n\n` +
-    `Всего: ${ids.length}\n` +
+    `Всего: ${receipts.length}\n` +
     `Отменено: ${success}\n` +
     `Ошибок: ${errors}`
   )

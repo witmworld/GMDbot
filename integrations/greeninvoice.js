@@ -88,11 +88,12 @@ export async function createReceipt({ clientName, clientEmail, clientPhone, amou
   return data
 }
 
-export async function cancelGreenInvoiceDocument(documentId) {
+export async function cancelGreenInvoiceDocument({ id, name, email }) {
   const token = await getToken()
 
-  console.log('[GreenInvoice Cancel] documentId:', JSON.stringify(documentId), 'length:', documentId.length)
-  console.log('[GreenInvoice Cancel] Creating זיכוי (type 410) for linkedDocumentId:', documentId)
+  console.log('[GreenInvoice Cancel] documentId:', JSON.stringify(id), 'length:', id.length)
+  console.log('[GreenInvoice Cancel] client name:', name, '| email:', email)
+  console.log('[GreenInvoice Cancel] Creating זיכוי (type 410) for linkedDocumentId:', id)
 
   const res = await fetch(`${BASE_URL}/documents`, {
     method: 'POST',
@@ -102,10 +103,15 @@ export async function cancelGreenInvoiceDocument(documentId) {
     },
     body: JSON.stringify({
       type: 410,
-      linkedDocumentId: documentId,
+      linkedDocumentId: id,
       lang: 'he',
       signed: true,
-      currency: 'ILS'
+      currency: 'ILS',
+      client: {
+        name:  name || '',
+        email: email || 'email@gmail.com',
+        add:   false
+      }
     })
   })
 
