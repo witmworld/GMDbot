@@ -70,13 +70,16 @@ adminCancelReceiptsScene.on('document', async (ctx) => {
     )
   }
 
-  // Найти индексы колонок клиента
-  const COL_NAME  = 'לקוח'
-  const COL_EMAIL = 'מייל לקוח'
-  const nameIndex  = decodedHeaders.indexOf(COL_NAME)
-  const emailIndex = decodedHeaders.indexOf(COL_EMAIL)
+  // Найти индексы колонок клиента и суммы
+  const COL_NAME   = 'לקוח'
+  const COL_EMAIL  = 'מייל לקוח'
+  const COL_AMOUNT = 'סכום'
+  const nameIndex   = decodedHeaders.indexOf(COL_NAME)
+  const emailIndex  = decodedHeaders.indexOf(COL_EMAIL)
+  const amountIndex = decodedHeaders.indexOf(COL_AMOUNT)
   console.log(`[Cancel Receipts] Name column "${COL_NAME}" → index ${nameIndex}`)
   console.log(`[Cancel Receipts] Email column "${COL_EMAIL}" → index ${emailIndex}`)
+  console.log(`[Cancel Receipts] Amount column "${COL_AMOUNT}" → index ${amountIndex}`)
 
   // Читать данные по найденным индексам
   const receipts = []
@@ -84,9 +87,10 @@ adminCancelReceiptsScene.on('document', async (ctx) => {
     const id = row[useIndex]
     if (typeof id === 'string' && id.trim()) {
       receipts.push({
-        id:    id.trim(),
-        name:  nameIndex !== -1 && row[nameIndex] ? String(row[nameIndex]).trim() : '',
-        email: emailIndex !== -1 && row[emailIndex] ? String(row[emailIndex]).trim() : 'email@gmail.com',
+        id:     id.trim(),
+        name:   nameIndex !== -1 && row[nameIndex] ? String(row[nameIndex]).trim() : '',
+        email:  emailIndex !== -1 && row[emailIndex] ? String(row[emailIndex]).trim() : 'email@gmail.com',
+        amount: amountIndex !== -1 ? Number(row[amountIndex]) || 0 : 0,
       })
     }
   }
