@@ -30,50 +30,46 @@ adminCancelReceiptsScene.on('document', async (ctx) => {
   const response = await fetch(fileLink.href)
   const buffer = await response.arrayBuffer()
 
-  // Прочитать Excel с явным указанием кодировки для иврита
-  const workbook = xlsx.read(buffer, { type: 'buffer', codepage: 1255 })
+  // Прочитать Excel — raw массив строк для ручного декодирования заголовков
+  const workbook = xlsx.read(buffer, { type: 'buffer' })
   const sheet = workbook.Sheets[workbook.SheetNames[0]]
-  const data = xlsx.utils.sheet_to_json(sheet)
+  const rawRows = xlsx.utils.sheet_to_json(sheet, { header: 1 })
 
-  // Лог реальных колонок после декодирования
   const COLUMN = 'מזהה מסמך'
   const FALLBACK_INDEX = 13 // 14-я колонка (индекс 13)
 
-  if (data.length > 0) {
-    const cols = Object.keys(data[0])
-    console.log('[Cancel Receipts] Columns after decode:', cols)
-    console.log('[Cancel Receipts] Looking for:', COLUMN)
-    console.log('[Cancel Receipts] Column found by name:', COLUMN in data[0])
+  // Перекодировать заголовки: xlsx иногда читает UTF-8 байты как latin1
+  const toHebrew = (str) => {
+    if (typeof str !== 'string') return str
+    try { return Buffer.from(str, 'latin1').toString('utf8') } catch { return str }
   }
 
-  // Читать по имени колонки, fallback — по индексу 13
-  const rawRows = xlsx.utils.sheet_to_json(sheet, { header: 1 })
-  const useByName = data.length > 0 && (COLUMN in data[0])
+  const rawHeaders = rawRows[0] ?? []
+  const decodedHeaders = rawHeaders.map(toHebrew)
 
+  console.log('[Cancel Receipts] Raw headers:', rawHeaders)
+  console.log('[Cancel Receipts] Decoded headers:', decodedHeaders)
+
+  // Найти индекс нужной колонки по имени (после декодирования)
+  const colIndex = decodedHeaders.indexOf(COLUMN)
+  const useIndex = colIndex !== -1 ? colIndex : FALLBACK_INDEX
+
+  console.log(`[Cancel Receipts] Column "${COLUMN}" → index ${colIndex !== -1 ? colIndex : `not found, fallback to ${FALLBACK_INDEX}`}`)
+  console.log(`[Cancel Receipts] 14th column header: "${decodedHeaders[FALLBACK_INDEX]}"`)
+
+  if (colIndex === -1) {
+    await ctx.reply(
+      `⚠️ Колонка "${COLUMN}" не найдена по имени — читаю по индексу ${FALLBACK_INDEX}.\n` +
+      `14-я колонка: "${decodedHeaders[FALLBACK_INDEX] ?? '—'}"\n\n` +
+      `Все заголовки:\n${decodedHeaders.join('\n')}`
+    )
+  }
+
+  // Читать данные по найденному индексу
   const documentIds = []
-
-  if (useByName) {
-    console.log('[Cancel Receipts] Reading by column name')
-    for (const row of data) {
-      const id = row[COLUMN]
-      if (typeof id === 'string' && id.trim()) documentIds.push(id.trim())
-    }
-  } else {
-    console.log(`[Cancel Receipts] Fallback: reading by index ${FALLBACK_INDEX}`)
-    for (const row of rawRows.slice(1)) { // пропустить заголовок
-      const id = row[FALLBACK_INDEX]
-      if (typeof id === 'string' && id.trim()) documentIds.push(id.trim())
-    }
-    // Сообщить какие реальные колонки нашли
-    if (data.length > 0) {
-      const cols = Object.keys(data[0])
-      const col14 = rawRows[0]?.[FALLBACK_INDEX] ?? '—'
-      await ctx.reply(
-        `⚠️ Колонка "${COLUMN}" не найдена по имени — читаю по индексу 13.\n` +
-        `14-я колонка в файле: "${col14}"\n\n` +
-        `Все колонки:\n${cols.join('\n')}`
-      )
-    }
+  for (const row of rawRows.slice(1)) {
+    const id = row[useIndex]
+    if (typeof id === 'string' && id.trim()) documentIds.push(id.trim())
   }
 
   ctx.session.receiptIds = documentIds
