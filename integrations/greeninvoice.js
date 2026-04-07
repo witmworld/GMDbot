@@ -104,7 +104,8 @@ export async function cancelGreenInvoiceDocument(documentId) {
       type: 410,
       linkedDocumentId: documentId,
       lang: 'he',
-      signed: true
+      signed: true,
+      currency: 'ILS'
     })
   })
 
