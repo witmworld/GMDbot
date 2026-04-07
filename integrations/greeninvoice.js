@@ -9,8 +9,11 @@ let tokenExpiresAt = 0
 
 export async function getToken() {
   if (cachedToken && Date.now() < tokenExpiresAt) {
+    console.log('[GreenInvoice Token] Using cached token')
     return cachedToken
   }
+
+  console.log('[GreenInvoice Token] Requesting new token...')
 
   const res = await fetch(`${BASE_URL}/account/token`, {
     method: 'POST',
@@ -21,7 +24,11 @@ export async function getToken() {
     })
   })
 
+  console.log('[GreenInvoice Token] Response status:', res.status)
+
   const data = await res.json()
+
+  console.log('[GreenInvoice Token] token received:', !!data.token)
 
   if (!data.token) {
     throw new Error(`GreenInvoice auth failed: ${JSON.stringify(data)}`)
