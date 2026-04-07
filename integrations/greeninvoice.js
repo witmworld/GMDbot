@@ -109,7 +109,7 @@ export async function cancelGreenInvoiceDocument({ id, name, email, amount }) {
       currency: 'ILS',
       client: {
         name:  name || '',
-        email: email || 'email@gmail.com',
+        email: 'cancel@cancel.com',
         add:   false
       },
       income: [
@@ -119,6 +119,13 @@ export async function cancelGreenInvoiceDocument({ id, name, email, amount }) {
           price: amount || 0,
           currency: 'ILS',
           vatType: 0
+        }
+      ],
+      payment: [
+        {
+          type: 10,
+          price: amount || 0,
+          currency: 'ILS'
         }
       ]
     })
