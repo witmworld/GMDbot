@@ -84,6 +84,8 @@ export async function createReceipt({ clientName, clientEmail, clientPhone, amou
 export async function cancelGreenInvoiceDocument(documentId) {
   const token = await getToken()
 
+  console.log('[GreenInvoice Cancel] documentId:', JSON.stringify(documentId), 'length:', documentId.length)
+
   const res = await fetch(`${BASE_URL}/documents/${documentId}/cancel`, {
     method: 'PUT',
     headers: {
@@ -96,6 +98,7 @@ export async function cancelGreenInvoiceDocument(documentId) {
   const data = await res.json()
 
   if (data.errorCode) {
+    console.log('[GreenInvoice Cancel] Error response:', res.status, JSON.stringify(data))
     throw new Error(`GreenInvoice cancel failed: ${data.errorCode} — ${data.errorMessage}`)
   }
 
