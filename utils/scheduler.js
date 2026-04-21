@@ -55,7 +55,10 @@ async function sendBroadcast(bot, msg) {
   let sent = 0
   for (const member of targets) {
     try {
-      await bot.telegram.sendMessage(String(member.fields['telegram_id']), text)
+      await bot.telegram.sendMessage(String(member.fields['telegram_id']), text, {
+        parse_mode: 'Markdown',
+        link_preview_options: { is_disabled: true }
+      })
       sent++
     } catch (e) {
       console.error(`[Scheduler ${SCHEDULER_ID}] sendMessage failed for ${member.fields['telegram_id']}:`, e.message)
