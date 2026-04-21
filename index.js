@@ -201,6 +201,11 @@ try {
 
   bot.use(stage.middleware())
 
+  bot.use((ctx, next) => {
+    if (ctx.chat && ctx.chat.type !== 'private') return
+    return next()
+  })
+
   bot.command('scan_group', async (ctx) => {
     if (ctx.chat.type !== 'private') {
       return ctx.reply('❌ Эта команда работает только в приватном чате с ботом')
