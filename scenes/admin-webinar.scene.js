@@ -195,70 +195,122 @@ adminWebinarScene.action('webinar:confirm', async (ctx) => {
   await ctx.reply('⏳ Создаю вебинар...')
 
   try {
-    // ── Платёжные ссылки ────────────────────────────────────────────────────
+    // ── Платёжные ссылки ─────────────────────────────────────────────────────
     const orderIdBase     = `webinar_base_${Date.now()}`
     const orderIdPractice = `webinar_practice_${Date.now() + 1}`
 
     const linkBase = await createPaymentLink({
-      orderId: orderIdBase,
-      amount:  d.priceBase,
+      orderId:     orderIdBase,
+      amount:      d.priceBase,
       description: `Доступ на вебинар - БАЗА (${d.dateText})`,
     })
     console.log(`[Webinar] Payment link БАЗА: ${linkBase}`)
 
     const linkPractice = await createPaymentLink({
-      orderId: orderIdPractice,
-      amount:  d.pricePractice,
+      orderId:     orderIdPractice,
+      amount:      d.pricePractice,
       description: `Запись вебинара - ПРАКТИКА (${d.dateText})`,
     })
     console.log(`[Webinar] Payment link ПРАКТИКА: ${linkPractice}`)
 
-    // ── Текст анонса ─────────────────────────────────────────────────────────
-    const announcementText =
-      `🎓 *${d.title}*\n\n` +
-      `📅 ${d.dateText}\n` +
-      `🎤 Ведущий: ${d.speaker}\n\n` +
-      `${d.description}\n\n` +
-      `💳 Доступ для БАЗА: ${linkBase}\n` +
-      `📹 Запись для ПРАКТИКА: ${linkPractice}`
+    // ── Вспомогательные переменные ───────────────────────────────────────────
+    const dateMatch = d.dateText.match(/^(.+)\s+(\d{1,2}:\d{2})$/)
+    const datePart  = dateMatch ? dateMatch[1] : d.dateText   // "4 мая"
+    const timePart  = dateMatch ? dateMatch[2] : ''           // "19:00"
+
+    const zoom           = d.zoomUrl
+    const zoomLine       = zoom ? `Ссылка на Zoom: ${zoom}\n` : ''
+    const zoomOrLater    = zoom || 'придёт позже'
+    const zoomOrContact  = zoom || 'уточните у @where_is_themoney'
 
     // ── Времена рассылки ──────────────────────────────────────────────────────
-    const webinarMoment      = moment.tz(d.dateIso, 'Asia/Jerusalem')
-    const announcementMoment = moment.tz(d.dateIso, 'Asia/Jerusalem').subtract(1, 'day').hour(10).minute(0).second(0).millisecond(0)
-    const zoomReminderMoment = moment.tz(d.dateIso, 'Asia/Jerusalem').subtract(30, 'minutes')
+    const t24h = moment.tz(d.dateIso, 'Asia/Jerusalem').subtract(24, 'hours')
+    const t1h  = moment.tz(d.dateIso, 'Asia/Jerusalem').subtract(1, 'hour')
+    const t15m = moment.tz(d.dateIso, 'Asia/Jerusalem').subtract(15, 'minutes')
 
-    // ── Запись анонса в MESSAGE table ─────────────────────────────────────────
-    await createMessage({
-      text:     announcementText,
-      tariff:   'КЛУБ',
-      sendTime: announcementMoment.toISOString(),
-      send:     true,
-    })
-    console.log(`[Webinar] Announcement message created, scheduled: ${announcementMoment.format('DD.MM HH:mm')}`)
+    // ── Тексты сообщений ──────────────────────────────────────────────────────
 
-    // ── Запись напоминания с Zoom (если ссылка есть) ──────────────────────────
-    let recordsCreated = 1
-    if (d.zoomUrl) {
-      const zoomText =
-        `🔔 Вебинар начинается через 30 минут!\n` +
-        `*${d.title}*\n\n` +
-        `🔗 Ссылка на Zoom: ${d.zoomUrl}`
+    // БАЗА [-24h] × 1
+    const textBase24 =
+      `Привет! 👋 Завтра, ${datePart} в ${timePart} — вебинар «${d.title}» с ${d.speaker}. ` +
+      `${d.description} ` +
+      `Хотите присоединиться онлайн или получить запись — доплата ${d.priceBase}₪: 👉 ${linkBase} ` +
+      `${zoomLine}` +
+      `Есть вопросы? Пишите @where_is_themoney`
+
+    // ПРАКТИКА [-24h]
+    const textPractice24 =
+      `Привет! 👋 Завтра, ${datePart} в ${timePart} — вебинар «${d.title}» с ${d.speaker}. ` +
+      `${d.description} ` +
+      `Запись в ваш тариф не входит, но можно исправить — ${d.pricePractice}₪: 👉 ${linkPractice} ` +
+      `${zoomLine}` +
+      `Есть вопросы? Пишите @where_is_themoney`
+
+    // ПРАКТИКА [-1h]
+    const textPractice1h =
+      `Привет! Через час — вебинар «${d.title}» с ${d.speaker}. ` +
+      `Запись не входит в ваш тариф — ${d.pricePractice}₪: 👉 ${linkPractice} ` +
+      `Ссылка на Zoom: ${zoomOrLater} ` +
+      `Есть вопросы? Пишите @where_is_themoney`
+
+    // ПРАКТИКА [-15min]
+    const textPractice15m =
+      `Через 15 минут начинаем! 🎙 «${d.title}» с ${d.speaker}. ` +
+      `Ссылка на Zoom: ${zoomOrContact} ` +
+      `Запись — ${d.pricePractice}₪: 👉 ${linkPractice}`
+
+    // ДОСТУП [-24h]
+    const textAccess24 =
+      `Привет! 👋 Завтра, ${datePart} в ${timePart} — вебинар «${d.title}» с ${d.speaker}. ` +
+      `${d.description} ` +
+      `${zoomLine}` +
+      `Есть вопросы? Пишите @where_is_themoney`
+
+    // ДОСТУП [-1h]
+    const textAccess1h =
+      `Привет! Через час — вебинар «${d.title}» с ${d.speaker}. ` +
+      `Ссылка на Zoom: ${zoomOrLater} ` +
+      `Есть вопросы? Пишите @where_is_themoney`
+
+    // ДОСТУП [-15min]
+    const textAccess15m =
+      `Через 15 минут начинаем! 🎙 «${d.title}» с ${d.speaker}. ` +
+      `Ссылка на Zoom: ${zoomOrContact}`
+
+    // ── Создание записей в MESSAGE table (7 штук) ─────────────────────────────
+    const records = [
+      // БАЗА: 1 запись
+      { text: textBase24,     tariff: 'БАЗА',      sendTime: t24h.toISOString(), zoomUrl: zoom },
+
+      // ПРАКТИКА: 3 записи
+      { text: textPractice24, tariff: 'ПРАКТИКА',  sendTime: t24h.toISOString(), zoomUrl: zoom },
+      { text: textPractice1h, tariff: 'ПРАКТИКА',  sendTime: t1h.toISOString(),  zoomUrl: zoom },
+      { text: textPractice15m,tariff: 'ПРАКТИКА',  sendTime: t15m.toISOString(), zoomUrl: zoom },
+
+      // ДОСТУП: 3 записи
+      { text: textAccess24,   tariff: 'ДОСТУП',    sendTime: t24h.toISOString(), zoomUrl: zoom },
+      { text: textAccess1h,   tariff: 'ДОСТУП',    sendTime: t1h.toISOString(),  zoomUrl: zoom },
+      { text: textAccess15m,  tariff: 'ДОСТУП',    sendTime: t15m.toISOString(), zoomUrl: zoom },
+    ]
+
+    for (const rec of records) {
       await createMessage({
-        text:     zoomText,
-        tariff:   'КЛУБ',
-        sendTime: zoomReminderMoment.toISOString(),
-        zoomUrl:  d.zoomUrl,
+        text:     rec.text,
+        tariff:   rec.tariff,
+        sendTime: rec.sendTime,
+        zoomUrl:  rec.zoomUrl || null,
         send:     true,
       })
-      console.log(`[Webinar] Zoom reminder created, scheduled: ${zoomReminderMoment.format('DD.MM HH:mm')}`)
-      recordsCreated = 2
+      console.log(`[Webinar] Created: ${rec.tariff} @ ${moment.tz(rec.sendTime, 'Asia/Jerusalem').format('DD.MM HH:mm')}`)
     }
 
     await ctx.reply(
       `✅ *Вебинар создан!*\n\n` +
-      `📋 Записей в MESSAGE table: ${recordsCreated}\n` +
-      `📅 Анонс уйдёт: ${announcementMoment.format('DD.MM в HH:mm')} (за день)\n` +
-      (d.zoomUrl ? `🔔 Напоминание с Zoom: ${zoomReminderMoment.format('DD.MM в HH:mm')} (за 30 мин)\n\n` : '\n') +
+      `📋 Записей в MESSAGE table: 7\n\n` +
+      `⏰ Расписание рассылок:\n` +
+      `• ${t24h.tz('Asia/Jerusalem').format('DD.MM в HH:mm')} — за 24ч (БАЗА, ПРАКТИКА, ДОСТУП)\n` +
+      `• ${t1h.tz('Asia/Jerusalem').format('DD.MM в HH:mm')} — за 1ч (ПРАКТИКА, ДОСТУП)\n` +
+      `• ${t15m.tz('Asia/Jerusalem').format('DD.MM в HH:mm')} — за 15мин (ПРАКТИКА, ДОСТУП)\n\n` +
       `🔗 Ссылка БАЗА: ${linkBase}\n` +
       `📹 Ссылка ПРАКТИКА: ${linkPractice}`,
       { parse_mode: 'Markdown' }
