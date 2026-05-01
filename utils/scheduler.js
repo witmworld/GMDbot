@@ -6,6 +6,18 @@ console.log('[Scheduler] Instance ID:', SCHEDULER_ID)
 
 const scheduledTimeouts = new Map()
 
+// Возвращает true если участник оплатил вебинар не более 30 дней назад.
+// Поле «Вебинар» хранится в формате dd/mm/yyyy.
+function hasActiveWebinarAccess(member) {
+  const raw = member.fields['Вебинар']
+  if (!raw) return false
+  const [dd, mm, yyyy] = raw.split('/')
+  if (!dd || !mm || !yyyy) return false
+  const paid = new Date(parseInt(yyyy), parseInt(mm) - 1, parseInt(dd))
+  const diffDays = (Date.now() - paid.getTime()) / (1000 * 60 * 60 * 24)
+  return diffDays <= 30
+}
+
 async function sendBroadcast(bot, msg) {
   const id     = msg.id
   const text   = msg.fields['Текст сообщения']
@@ -32,13 +44,22 @@ async function sendBroadcast(bot, msg) {
     return
   }
 
-  const broadcastAll    = !tariff || tariff === 'ВСЕ' || tariff === 'КЛУБ'
-  const broadcastPremium = tariff === 'ПРЕМИУМ'
+  const broadcastAll      = !tariff || tariff === 'ВСЕ' || tariff === 'КЛУБ'
+  const broadcastPremium  = tariff === 'ПРЕМИУМ'
+  const broadcastBase     = tariff === 'БАЗА'
+  const broadcastPractice = tariff === 'ПРАКТИКА'
+  const broadcastAccess   = tariff === 'ДОСТУП'
 
   if (broadcastAll) {
     console.log(`[Scheduler ${SCHEDULER_ID}] Broadcasting to ALL members`)
   } else if (broadcastPremium) {
     console.log(`[Scheduler ${SCHEDULER_ID}] Broadcasting to ПРЕМИУМ (all except БАЗА)`)
+  } else if (broadcastBase) {
+    console.log(`[Scheduler ${SCHEDULER_ID}] Broadcasting to БАЗА without active webinar payment`)
+  } else if (broadcastPractice) {
+    console.log(`[Scheduler ${SCHEDULER_ID}] Broadcasting to ПРАКТИКА without active webinar payment`)
+  } else if (broadcastAccess) {
+    console.log(`[Scheduler ${SCHEDULER_ID}] Broadcasting to ДОСТУП (ПРАКТИКА+, СОПРОВОЖДЕНИЕ, paid БАЗА/ПРАКТИКА)`)
   } else {
     console.log(`[Scheduler ${SCHEDULER_ID}] Broadcasting to tariff: ${tariff}`)
   }
@@ -47,8 +68,29 @@ async function sendBroadcast(bot, msg) {
     const tgId       = m.fields['telegram_id']
     const userTariff = m.fields['Тариф']
     if (!tgId) return false
-    if (broadcastAll) return true
+
+    if (broadcastAll)     return true
     if (broadcastPremium) return userTariff !== 'БАЗА'
+
+    // БАЗА: только те кто НЕ оплатил или оплата просрочена
+    if (broadcastBase) {
+      return userTariff === 'БАЗА' && !hasActiveWebinarAccess(m)
+    }
+
+    // ПРАКТИКА: только те кто НЕ оплатил или оплата просрочена
+    if (broadcastPractice) {
+      return userTariff === 'ПРАКТИКА' && !hasActiveWebinarAccess(m)
+    }
+
+    // ДОСТУП: ПРАКТИКА+ и СОПРОВОЖДЕНИЕ всегда,
+    //         БАЗА и ПРАКТИКА — только с активной оплатой (≤30 дней)
+    if (broadcastAccess) {
+      if (userTariff === 'ПРАКТИКА+')     return true
+      if (userTariff === 'СОПРОВОЖДЕНИЕ') return true
+      if ((userTariff === 'БАЗА' || userTariff === 'ПРАКТИКА') && hasActiveWebinarAccess(m)) return true
+      return false
+    }
+
     return userTariff === tariff
   })
 
