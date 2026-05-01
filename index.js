@@ -21,7 +21,7 @@ import { menuScene } from './scenes/menu.scene.js'
 import { subscribeScene } from './scenes/subscribe.scene.js'
 import { scanGroupMembers } from './utils/group-scanner.js'
 import { startScheduler, checkScheduledMessages } from './utils/scheduler.js'
-import { getTariffs, getClubMembers, getClubMember, createClubMember, getClubMemberRecord, setMemberAdminFlag } from './integrations/fillout.js'
+import { getTariffs, getClubMembers, getClubMember, createClubMember, getClubMemberRecord, setMemberAdminFlag, updateClubMemberFields } from './integrations/fillout.js'
 import { findLeadByOrderId, updateLeadPaymentStatus, updateLeadFields } from './integrations/bitrix.js'
 import { createReceipt } from './integrations/greeninvoice.js'
 
@@ -483,6 +483,7 @@ try {
         console.error('❌ Ошибка создания квитанции (external):', err)
       }
     } else if (body.status === '1' && body.order_id) {
+      const telegramId = body.order_id.split('_')[0]
       try {
         const lead = await findLeadByOrderId(body.order_id)
         if (lead?.ID) {
@@ -504,17 +505,36 @@ try {
             await updateLeadFields(lead.ID, { UF_CRM_1734183234: receiptUrl })
           }
 
-          if (receiptUrl && body.order_id) {
-            const telegramId = body.order_id.split('_')[0]
-            if (telegramId) {
-              await bot.telegram.sendMessage(
-                telegramId,
-                `תודה! 🙏\nקבלה נשלחה לאימייל שלך.\nלצפייה בקבלה: ${receiptUrl}`
-              )
-            }
+          if (receiptUrl && telegramId) {
+            await bot.telegram.sendMessage(
+              telegramId,
+              `תודה! 🙏\nקבלה נשלחה לאימייל שלך.\nלצפייה בקבלה: ${receiptUrl}`
+            )
           }
         } catch (err) {
           console.error('❌ Ошибка создания квитанции GreenInvoice:', err)
+        }
+
+        if (/доступ|вебинар/i.test(body.name || '') && telegramId) {
+          console.log(`[Webhook] Access payment for telegramId: ${telegramId}`)
+          try {
+            const memberRecord = await getClubMemberRecord(telegramId)
+            if (memberRecord) {
+              const today = new Date()
+              const dd = String(today.getDate()).padStart(2, '0')
+              const mm = String(today.getMonth() + 1).padStart(2, '0')
+              const yyyy = today.getFullYear()
+              const dateStr = `${dd}/${mm}/${yyyy}`
+              await updateClubMemberFields(memberRecord.id, { 'Вебинар': dateStr })
+              console.log(`[Webhook] Updated Вебинар field for telegramId: ${telegramId} → ${dateStr}`)
+            }
+            await bot.telegram.sendMessage(
+              telegramId,
+              '✅ Оплата получена! Ссылка на Zoom придёт перед началом вебинара.'
+            )
+          } catch (err) {
+            console.error(`[Webhook] Webinar update failed for telegramId ${telegramId}:`, err.message)
+          }
         }
       } catch (err) {
         console.error('❌ Ошибка обновления лида после оплаты:', err)

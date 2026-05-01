@@ -194,6 +194,21 @@ export async function createClubMember({ first_name, last_name, username, user_i
   return data
 }
 
+export async function updateClubMemberFields(recordId, fields) {
+  const url = `${BASE_URL}/bases/${FILLOUT_DATABASE_ID}/tables/${CLUB_TABLE_ID}/records/${recordId}`
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${FILLOUT_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ record: fields }),
+  })
+  const data = await res.json()
+  if (res.status >= 400) throw new Error(`updateClubMemberFields error: ${JSON.stringify(data)}`)
+  return data
+}
+
 export async function updateClubMemberTelegram(recordId, telegramUsername, telegramId, email = null) {
   const url = `${BASE_URL}/bases/${FILLOUT_DATABASE_ID}/tables/${CLUB_TABLE_ID}/records/${recordId}`
   // Fillout API requires { "record": { ...fields } }, NOT { "fields": { ... } }
