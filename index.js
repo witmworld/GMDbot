@@ -528,10 +528,11 @@ try {
               await updateClubMemberFields(memberRecord.id, { 'Вебинар': dateStr })
               console.log(`[Webhook] Updated Вебинар field for telegramId: ${telegramId} → ${dateStr}`)
             }
-            await bot.telegram.sendMessage(
-              telegramId,
-              '✅ Оплата получена! Ссылка на Zoom придёт перед началом вебинара.'
-            )
+            const zoomUrl = process.env.WEBINAR_ZOOM_URL
+            const webinarMsg = zoomUrl
+              ? `✅ Оплата получена!\nСсылка на вебинар: ${zoomUrl}`
+              : '✅ Оплата получена!\nСсылка на Zoom придёт вам в боте незадолго до начала вебинара.'
+            await bot.telegram.sendMessage(telegramId, webinarMsg)
           } catch (err) {
             console.error(`[Webhook] Webinar update failed for telegramId ${telegramId}:`, err.message)
           }
