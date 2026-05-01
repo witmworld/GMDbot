@@ -2,7 +2,7 @@ import { Scenes, Markup } from 'telegraf'
 import moment from 'moment-timezone'
 import { isAdmin } from '../utils/adminCheck.js'
 import { createPaymentLink } from '../integrations/allpay.js'
-import { createMessage } from '../integrations/fillout.js'
+import { createMessage, updateMessage, getMessages, getClubMembers } from '../integrations/fillout.js'
 
 const DEFAULT_PRICE_BASE     = 50
 const DEFAULT_PRICE_PRACTICE = 30
@@ -39,6 +39,16 @@ adminWebinarScene.enter(async (ctx) => {
     return ctx.scene.leave()
   }
 
+  // ── zoom_only режим ───────────────────────────────────────────────────────
+  if (ctx.session.webinarZoomOnly) {
+    ctx.session.webinarStep = 'zoom_only'
+    return ctx.reply(
+      '🔗 *Добавить Zoom URL*\n\nВведите ссылку на Zoom:',
+      { parse_mode: 'Markdown', ...cancelKeyboard }
+    )
+  }
+
+  // ── обычный режим ─────────────────────────────────────────────────────────
   ctx.session.webinarStep = 1
   ctx.session.webinarData = {
     priceBase:     DEFAULT_PRICE_BASE,
@@ -56,6 +66,68 @@ adminWebinarScene.enter(async (ctx) => {
 adminWebinarScene.on('text', async (ctx) => {
   const step = ctx.session.webinarStep
   const data = ctx.session.webinarData
+
+  // ── zoom_only: получить и применить Zoom URL ───────────────────────────────
+  if (step === 'zoom_only') {
+    const zoomUrl = ctx.message.text.trim()
+    ctx.session.webinarZoomOnly = false
+
+    await ctx.reply('⏳ Обновляю записи...')
+
+    try {
+      // Найти записи без ZOOM_URL с временем рассылки не старше 3 часов назад
+      const messages = await getMessages()
+      const now = Date.now()
+      const toUpdate = messages.filter(m => {
+        if (m.fields['ZOOM_URL']) return false
+        const sendTimeStr = m.fields['Время рассылки']
+        if (!sendTimeStr) return false
+        const t = new Date(sendTimeStr).getTime()
+        return t > now - 3 * 60 * 60 * 1000
+      })
+
+      for (const rec of toUpdate) {
+        await updateMessage(rec.id, { 'ZOOM_URL': zoomUrl })
+        console.log(`[Webinar Zoom] Updated record ${rec.id} (${rec.fields['Тариф']} @ ${rec.fields['Время рассылки']})`)
+      }
+
+      // Найти участников с активной оплатой (поле Вебинар ≤30 дней)
+      const allMembers = await getClubMembers()
+      const paidMembers = allMembers.filter(m => {
+        const raw = m.fields['Вебинар']
+        if (!raw) return false
+        const [dd, mm, yyyy] = raw.split('/')
+        if (!dd || !mm || !yyyy) return false
+        const paid = new Date(parseInt(yyyy), parseInt(mm) - 1, parseInt(dd))
+        return (Date.now() - paid.getTime()) / (1000 * 60 * 60 * 24) <= 30
+      })
+
+      let sent = 0
+      for (const member of paidMembers) {
+        const tgId = member.fields['telegram_id']
+        if (!tgId) continue
+        try {
+          await ctx.telegram.sendMessage(
+            String(tgId),
+            `🔗 Ссылка на вебинар готова!\n${zoomUrl}`,
+            { link_preview_options: { is_disabled: true } }
+          )
+          sent++
+        } catch (e) {
+          console.error(`[Webinar Zoom] sendMessage failed for ${tgId}:`, e.message)
+        }
+      }
+
+      await ctx.reply(
+        `✅ Обновлено ${toUpdate.length} записей рассылки, отправлено ${sent} участникам с оплаченным доступом`
+      )
+    } catch (err) {
+      console.error('[Webinar Zoom] Error:', err)
+      await ctx.reply('❌ Ошибка: ' + err.message)
+    }
+
+    return ctx.scene.enter('ADMIN_MENU')
+  }
 
   // ── Шаг 1: дата и время ───────────────────────────────────────────────────
   if (step === 1) {

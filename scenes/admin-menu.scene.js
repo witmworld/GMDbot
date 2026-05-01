@@ -21,6 +21,7 @@ adminMenuScene.enter(async (ctx) => {
         [Markup.button.callback('💳 Создать ссылку на оплату', 'admin:payment_link')],
         [Markup.button.callback('🗑 Отменить квитанции', 'admin:cancel_receipts')],
         [Markup.button.callback('📹 Создать вебинар', 'admin:webinar')],
+        [Markup.button.callback('🔗 Добавить Zoom URL', 'admin:webinar_zoom')],
         [Markup.button.callback('⬅️ Главное меню', 'admin:exit')]
       ])
     }
@@ -50,6 +51,12 @@ adminMenuScene.action('admin:cancel_receipts', async (ctx) => {
 
 adminMenuScene.action('admin:webinar', async (ctx) => {
   await ctx.answerCbQuery()
+  return ctx.scene.enter('ADMIN_WEBINAR')
+})
+
+adminMenuScene.action('admin:webinar_zoom', async (ctx) => {
+  await ctx.answerCbQuery()
+  ctx.session.webinarZoomOnly = true
   return ctx.scene.enter('ADMIN_WEBINAR')
 })
 
