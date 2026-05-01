@@ -2,7 +2,8 @@ import { Scenes, Markup } from 'telegraf'
 import moment from 'moment-timezone'
 import { isAdmin } from '../utils/adminCheck.js'
 import { createPaymentLink } from '../integrations/allpay.js'
-import { createMessage, updateMessage, getMessages, getClubMembers } from '../integrations/fillout.js'
+import { createMessage, updateMessage, getMessages, getClubMembers, clearSendFlag } from '../integrations/fillout.js'
+import { hasActiveWebinarAccess } from '../utils/scheduler.js'
 
 const DEFAULT_PRICE_BASE     = 50
 const DEFAULT_PRICE_PRACTICE = 30
@@ -12,6 +13,7 @@ const MONTHS = {
   'июля': 7, 'августа': 8, 'сентября': 9, 'октября': 10, 'ноября': 11, 'декабря': 12,
 }
 
+// Парсит "4 мая 19:00" → moment в Israel timezone
 function parseWebinarDate(text) {
   const match = text.trim().match(/^(\d{1,2})\s+(\S+)\s+(\d{1,2}):(\d{2})$/)
   if (!match) return null
@@ -22,6 +24,35 @@ function parseWebinarDate(text) {
   const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(parseInt(day)).padStart(2, '0')} ${hours}:${minutes}`
   const m = moment.tz(dateStr, 'YYYY-MM-DD HH:mm', 'Asia/Jerusalem')
   return m.isValid() ? m : null
+}
+
+// Парсит "4 мая" → { day, month }
+function parseDateOnly(text) {
+  const match = text.trim().match(/^(\d{1,2})\s+(\S+)$/)
+  if (!match) return null
+  const [, day, monthStr] = match
+  const month = MONTHS[monthStr.toLowerCase()]
+  if (!month) return null
+  return { day: parseInt(day), month }
+}
+
+// Фильтрует участников по тарифу — та же логика что в scheduler
+function filterTargets(members, tariff) {
+  return members.filter(m => {
+    const tg = m.fields['telegram_id']
+    if (!tg) return false
+    const t = m.fields['Тариф']
+    if (!tariff || tariff === 'ВСЕ' || tariff === 'КЛУБ') return true
+    if (tariff === 'ПРЕМИУМ') return t !== 'БАЗА'
+    if (tariff === 'БАЗА')     return t === 'БАЗА'     && !hasActiveWebinarAccess(m)
+    if (tariff === 'ПРАКТИКА') return t === 'ПРАКТИКА' && !hasActiveWebinarAccess(m)
+    if (tariff === 'ДОСТУП') {
+      if (t === 'ПРАКТИКА+' || t === 'СОПРОВОЖДЕНИЕ') return true
+      if ((t === 'БАЗА' || t === 'ПРАКТИКА') && hasActiveWebinarAccess(m)) return true
+      return false
+    }
+    return t === tariff
+  })
 }
 
 export const adminWebinarScene = new Scenes.BaseScene('ADMIN_WEBINAR')
@@ -41,9 +72,10 @@ adminWebinarScene.enter(async (ctx) => {
 
   // ── zoom_only режим ───────────────────────────────────────────────────────
   if (ctx.session.webinarZoomOnly) {
-    ctx.session.webinarStep = 'zoom_only'
+    ctx.session.webinarStep    = 'zoom_only_url'
+    ctx.session.webinarZoomData = {}
     return ctx.reply(
-      '🔗 *Добавить Zoom URL*\n\nВведите ссылку на Zoom:',
+      '🔗 *Добавить Zoom URL*\n\nШаг 1/2: Введите ссылку на Zoom:',
       { parse_mode: 'Markdown', ...cancelKeyboard }
     )
   }
@@ -67,59 +99,75 @@ adminWebinarScene.on('text', async (ctx) => {
   const step = ctx.session.webinarStep
   const data = ctx.session.webinarData
 
-  // ── zoom_only: получить и применить Zoom URL ───────────────────────────────
-  if (step === 'zoom_only') {
-    const zoomUrl = ctx.message.text.trim()
+  // ── zoom_only шаг 1: получить URL ────────────────────────────────────────
+  if (step === 'zoom_only_url') {
+    ctx.session.webinarZoomData.url = ctx.message.text.trim()
+    ctx.session.webinarStep = 'zoom_only_date'
+    return ctx.reply(
+      '📅 *Шаг 2/2: На какую дату эта ссылка?*\n_Например: 4 мая_',
+      { parse_mode: 'Markdown', ...cancelKeyboard }
+    )
+  }
+
+  // ── zoom_only шаг 2: получить дату и применить ────────────────────────────
+  if (step === 'zoom_only_date') {
+    const zoomUrl = ctx.session.webinarZoomData.url
+    const parsed  = parseDateOnly(ctx.message.text)
     ctx.session.webinarZoomOnly = false
+
+    if (!parsed) {
+      return ctx.reply('❌ Не могу распознать дату. Введите в формате _"4 мая"_:', { parse_mode: 'Markdown' })
+    }
 
     await ctx.reply('⏳ Обновляю записи...')
 
     try {
-      // Найти записи без ZOOM_URL с временем рассылки не старше 3 часов назад
       const messages = await getMessages()
-      const now = Date.now()
+
+      // Найти записи с совпадающей датой рассылки (по дню и месяцу, Israel TZ)
       const toUpdate = messages.filter(m => {
-        if (m.fields['ZOOM_URL']) return false
         const sendTimeStr = m.fields['Время рассылки']
         if (!sendTimeStr) return false
-        const t = new Date(sendTimeStr).getTime()
-        return t > now - 3 * 60 * 60 * 1000
+        const mt = moment.tz(sendTimeStr, 'Asia/Jerusalem')
+        return mt.date() === parsed.day && (mt.month() + 1) === parsed.month
       })
 
       for (const rec of toUpdate) {
         await updateMessage(rec.id, { 'ZOOM_URL': zoomUrl })
-        console.log(`[Webinar Zoom] Updated record ${rec.id} (${rec.fields['Тариф']} @ ${rec.fields['Время рассылки']})`)
+        console.log(`[Webinar Zoom] Updated ${rec.id} (${rec.fields['Тариф']} @ ${rec.fields['Время рассылки']})`)
       }
 
-      // Найти участников с активной оплатой (поле Вебинар ≤30 дней)
-      const allMembers = await getClubMembers()
-      const paidMembers = allMembers.filter(m => {
-        const raw = m.fields['Вебинар']
-        if (!raw) return false
-        const [dd, mm, yyyy] = raw.split('/')
-        if (!dd || !mm || !yyyy) return false
-        const paid = new Date(parseInt(yyyy), parseInt(mm) - 1, parseInt(dd))
-        return (Date.now() - paid.getTime()) / (1000 * 60 * 60 * 24) <= 30
-      })
+      // Проверить: ссылка получена менее чем за 24ч до вебинара?
+      // Оцениваем время вебинара как наибольшее sendTime + 15 мин
+      let sentAccess = 0
+      if (toUpdate.length > 0) {
+        const latestSend = Math.max(...toUpdate.map(r => new Date(r.fields['Время рассылки']).getTime()))
+        const webinarApprox = latestSend + 15 * 60 * 1000
+        const hoursLeft = (webinarApprox - Date.now()) / (1000 * 60 * 60)
 
-      let sent = 0
-      for (const member of paidMembers) {
-        const tgId = member.fields['telegram_id']
-        if (!tgId) continue
-        try {
-          await ctx.telegram.sendMessage(
-            String(tgId),
-            `🔗 Ссылка на вебинар готова!\n${zoomUrl}`,
-            { link_preview_options: { is_disabled: true } }
-          )
-          sent++
-        } catch (e) {
-          console.error(`[Webinar Zoom] sendMessage failed for ${tgId}:`, e.message)
+        if (hoursLeft < 24) {
+          const allMembers = await getClubMembers()
+          const targets    = filterTargets(allMembers, 'ДОСТУП')
+          for (const member of targets) {
+            const tgId = member.fields['telegram_id']
+            if (!tgId) continue
+            try {
+              await ctx.telegram.sendMessage(
+                String(tgId),
+                `🔗 Ссылка на вебинар готова!\n${zoomUrl}`,
+                { link_preview_options: { is_disabled: true } }
+              )
+              sentAccess++
+            } catch (e) {
+              console.error(`[Webinar Zoom] sendMessage failed for ${tgId}:`, e.message)
+            }
+          }
         }
       }
 
       await ctx.reply(
-        `✅ Обновлено ${toUpdate.length} записей рассылки, отправлено ${sent} участникам с оплаченным доступом`
+        `✅ Обновлено ${toUpdate.length} записей рассылки` +
+        (sentAccess > 0 ? `, отправлено ${sentAccess} участникам с оплаченным доступом` : '')
       )
     } catch (err) {
       console.error('[Webinar Zoom] Error:', err)
@@ -262,7 +310,8 @@ adminWebinarScene.action('webinar:prices_edit', async (ctx) => {
 
 adminWebinarScene.action('webinar:confirm', async (ctx) => {
   await ctx.answerCbQuery()
-  const d = ctx.session.webinarData
+  const d        = ctx.session.webinarData
+  const telegram = ctx.telegram   // захватываем для использования в setTimeout
 
   await ctx.reply('⏳ Создаю вебинар...')
 
@@ -287,13 +336,13 @@ adminWebinarScene.action('webinar:confirm', async (ctx) => {
 
     // ── Вспомогательные переменные ───────────────────────────────────────────
     const dateMatch = d.dateText.match(/^(.+)\s+(\d{1,2}:\d{2})$/)
-    const datePart  = dateMatch ? dateMatch[1] : d.dateText   // "4 мая"
-    const timePart  = dateMatch ? dateMatch[2] : ''           // "19:00"
+    const datePart  = dateMatch ? dateMatch[1] : d.dateText
+    const timePart  = dateMatch ? dateMatch[2] : ''
 
-    const zoom           = d.zoomUrl
-    const zoomLine       = zoom ? `Ссылка на Zoom: ${zoom}\n` : ''
-    const zoomOrLater    = zoom || 'придёт позже'
-    const zoomOrContact  = zoom || 'уточните у @where_is_themoney'
+    const zoom          = d.zoomUrl
+    const zoomLine      = zoom ? `Ссылка на Zoom: ${zoom}\n` : ''
+    const zoomOrLater   = zoom || 'придёт позже'
+    const zoomOrContact = zoom || 'уточните у @where_is_themoney'
 
     // ── Времена рассылки ──────────────────────────────────────────────────────
     const t24h = moment.tz(d.dateIso, 'Asia/Jerusalem').subtract(24, 'hours')
@@ -302,7 +351,6 @@ adminWebinarScene.action('webinar:confirm', async (ctx) => {
 
     // ── Тексты сообщений ──────────────────────────────────────────────────────
 
-    // БАЗА [-24h] × 1
     const textBase24 =
       `Привет! 👋 Завтра, ${datePart} в ${timePart} — вебинар «${d.title}» с ${d.speaker}. ` +
       `${d.description} ` +
@@ -310,7 +358,6 @@ adminWebinarScene.action('webinar:confirm', async (ctx) => {
       `${zoomLine}` +
       `Есть вопросы? Пишите @where_is_themoney`
 
-    // ПРАКТИКА [-24h]
     const textPractice24 =
       `Привет! 👋 Завтра, ${datePart} в ${timePart} — вебинар «${d.title}» с ${d.speaker}. ` +
       `${d.description} ` +
@@ -318,62 +365,80 @@ adminWebinarScene.action('webinar:confirm', async (ctx) => {
       `${zoomLine}` +
       `Есть вопросы? Пишите @where_is_themoney`
 
-    // ПРАКТИКА [-1h]
     const textPractice1h =
       `Привет! Через час — вебинар «${d.title}» с ${d.speaker}. ` +
       `Запись не входит в ваш тариф — ${d.pricePractice}₪: 👉 ${linkPractice} ` +
       `Ссылка на Zoom: ${zoomOrLater} ` +
       `Есть вопросы? Пишите @where_is_themoney`
 
-    // ПРАКТИКА [-15min]
     const textPractice15m =
       `Через 15 минут начинаем! 🎙 «${d.title}» с ${d.speaker}. ` +
       `Ссылка на Zoom: ${zoomOrContact} ` +
       `Запись — ${d.pricePractice}₪: 👉 ${linkPractice}`
 
-    // ДОСТУП [-24h]
     const textAccess24 =
       `Привет! 👋 Завтра, ${datePart} в ${timePart} — вебинар «${d.title}» с ${d.speaker}. ` +
       `${d.description} ` +
       `${zoomLine}` +
       `Есть вопросы? Пишите @where_is_themoney`
 
-    // ДОСТУП [-1h]
     const textAccess1h =
       `Привет! Через час — вебинар «${d.title}» с ${d.speaker}. ` +
       `Ссылка на Zoom: ${zoomOrLater} ` +
       `Есть вопросы? Пишите @where_is_themoney`
 
-    // ДОСТУП [-15min]
     const textAccess15m =
       `Через 15 минут начинаем! 🎙 «${d.title}» с ${d.speaker}. ` +
       `Ссылка на Zoom: ${zoomOrContact}`
 
-    // ── Создание записей в MESSAGE table (7 штук) ─────────────────────────────
+    // ── Создание 7 записей в MESSAGE table + планирование отправки ────────────
     const records = [
-      // БАЗА: 1 запись
-      { text: textBase24,     tariff: 'БАЗА',      sendTime: t24h.toISOString(), zoomUrl: zoom },
-
-      // ПРАКТИКА: 3 записи
-      { text: textPractice24, tariff: 'ПРАКТИКА',  sendTime: t24h.toISOString(), zoomUrl: zoom },
-      { text: textPractice1h, tariff: 'ПРАКТИКА',  sendTime: t1h.toISOString(),  zoomUrl: zoom },
-      { text: textPractice15m,tariff: 'ПРАКТИКА',  sendTime: t15m.toISOString(), zoomUrl: zoom },
-
-      // ДОСТУП: 3 записи
-      { text: textAccess24,   tariff: 'ДОСТУП',    sendTime: t24h.toISOString(), zoomUrl: zoom },
-      { text: textAccess1h,   tariff: 'ДОСТУП',    sendTime: t1h.toISOString(),  zoomUrl: zoom },
-      { text: textAccess15m,  tariff: 'ДОСТУП',    sendTime: t15m.toISOString(), zoomUrl: zoom },
+      { text: textBase24,      tariff: 'БАЗА',     sendTime: t24h.toISOString(), zoomUrl: zoom },
+      { text: textPractice24,  tariff: 'ПРАКТИКА', sendTime: t24h.toISOString(), zoomUrl: zoom },
+      { text: textPractice1h,  tariff: 'ПРАКТИКА', sendTime: t1h.toISOString(),  zoomUrl: zoom },
+      { text: textPractice15m, tariff: 'ПРАКТИКА', sendTime: t15m.toISOString(), zoomUrl: zoom },
+      { text: textAccess24,    tariff: 'ДОСТУП',   sendTime: t24h.toISOString(), zoomUrl: zoom },
+      { text: textAccess1h,    tariff: 'ДОСТУП',   sendTime: t1h.toISOString(),  zoomUrl: zoom },
+      { text: textAccess15m,   tariff: 'ДОСТУП',   sendTime: t15m.toISOString(), zoomUrl: zoom },
     ]
 
     for (const rec of records) {
-      await createMessage({
+      const created  = await createMessage({
         text:     rec.text,
         tariff:   rec.tariff,
         sendTime: rec.sendTime,
         zoomUrl:  rec.zoomUrl || null,
         send:     true,
       })
-      console.log(`[Webinar] Created: ${rec.tariff} @ ${moment.tz(rec.sendTime, 'Asia/Jerusalem').format('DD.MM HH:mm')}`)
+      const recordId = created?.record?.id
+      const label    = moment.tz(rec.sendTime, 'Asia/Jerusalem').format('DD.MM HH:mm')
+      console.log(`[Webinar] Created: ${rec.tariff} @ ${label} | id: ${recordId}`)
+
+      // Поставить setTimeout если время рассылки в будущем
+      const delay = new Date(rec.sendTime).getTime() - Date.now()
+      if (delay > 0 && recordId) {
+        setTimeout(async () => {
+          try {
+            await clearSendFlag(recordId)
+            const allMembers = await getClubMembers()
+            const targets    = filterTargets(allMembers, rec.tariff)
+            for (const member of targets) {
+              try {
+                await telegram.sendMessage(String(member.fields['telegram_id']), rec.text, {
+                  parse_mode: 'Markdown',
+                  link_preview_options: { is_disabled: true }
+                })
+              } catch (e) {
+                console.error(`[Webinar] Send failed for ${member.fields['telegram_id']}:`, e.message)
+              }
+            }
+            console.log(`[Webinar] Sent ${rec.tariff} @ ${label} → ${targets.length} members`)
+          } catch (e) {
+            console.error(`[Webinar] Scheduled send error (${rec.tariff} @ ${label}):`, e.message)
+          }
+        }, delay)
+        console.log(`[Webinar] Scheduled ${rec.tariff} message for ${label}`)
+      }
     }
 
     await ctx.reply(

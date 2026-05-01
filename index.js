@@ -21,7 +21,7 @@ import { adminWebinarScene } from './scenes/admin-webinar.scene.js'
 import { menuScene } from './scenes/menu.scene.js'
 import { subscribeScene } from './scenes/subscribe.scene.js'
 import { scanGroupMembers } from './utils/group-scanner.js'
-import { startScheduler, checkScheduledMessages } from './utils/scheduler.js'
+import { startScheduler } from './utils/scheduler.js'
 import { getTariffs, getClubMembers, getClubMember, createClubMember, getClubMemberRecord, setMemberAdminFlag, updateClubMemberFields, getMessages } from './integrations/fillout.js'
 import { findLeadByOrderId, updateLeadPaymentStatus, updateLeadFields } from './integrations/bitrix.js'
 import { createReceipt } from './integrations/greeninvoice.js'
@@ -440,11 +440,9 @@ try {
     try {
       console.log('=== BEFORE BOT LAUNCH ===')
 
-      console.log('[Init] Starting scheduler and initial check...')
-      await checkScheduledMessages(bot)
-      console.log('[Init] Initial check completed')
+      console.log('[Init] Starting scheduler...')
       startScheduler(bot)
-      console.log('[Init] Daily scheduler started')
+      console.log('[Init] Scheduler started (includes immediate pending check)')
 
       console.log('[Webhook] Setting webhook to:', WEBHOOK_DOMAIN + webhookPath)
       await bot.telegram.setWebhook(WEBHOOK_DOMAIN + webhookPath)

@@ -8,7 +8,7 @@ const scheduledTimeouts = new Map()
 
 // Возвращает true если участник оплатил вебинар не более 30 дней назад.
 // Поле «Вебинар» хранится в формате dd/mm/yyyy.
-function hasActiveWebinarAccess(member) {
+export function hasActiveWebinarAccess(member) {
   const raw = member.fields['Вебинар']
   if (!raw) return false
   const [dd, mm, yyyy] = raw.split('/')
@@ -195,5 +195,10 @@ function scheduleDailyAt18(bot) {
 
 export function startScheduler(bot) {
   console.log(`[Scheduler ${SCHEDULER_ID}] Started — daily check at 18:00`)
+  // Подхватить pending таймауты после рестарта Railway
+  checkScheduledMessages(bot)
   scheduleDailyAt18(bot)
 }
+
+// Алиас для явного вызова при рестарте
+export { checkScheduledMessages as scheduleCheck }
