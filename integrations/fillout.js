@@ -152,6 +152,29 @@ export async function getMessages() {
   return data.records
 }
 
+export async function createMessage({ text, tariff, sendTime, zoomUrl, send = false }) {
+  const url = `${BASE_URL}/bases/${FILLOUT_DATABASE_ID}/tables/${MESSAGE_TABLE_ID}/records`
+  const record = {
+    'Текст сообщения': text,
+    'send': send,
+  }
+  if (tariff)  record['Тариф'] = tariff
+  if (sendTime) record['Время рассылки'] = sendTime
+  if (zoomUrl) record['ZOOM_URL'] = zoomUrl
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${FILLOUT_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ record }),
+  })
+  const data = await res.json()
+  if (res.status >= 400) throw new Error(`createMessage error: ${JSON.stringify(data)}`)
+  return data
+}
+
 export async function clearSendFlag(recordId) {
   const url = `${BASE_URL}/bases/${FILLOUT_DATABASE_ID}/tables/${MESSAGE_TABLE_ID}/records/${recordId}`
   const res = await fetch(url, {
