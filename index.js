@@ -245,10 +245,10 @@ try {
             updated++
           } else {
             const newRecord = await createClubMember({
-              first_name: user.first_name,
-              last_name: user.last_name,
-              username: user.username,
-              user_id: user.id
+              'Имя, фамилия': `${user.first_name || ''} ${user.last_name || ''}`.trim(),
+              'Ник в ТГ': user.username ? `@${user.username}` : (user.first_name || ''),
+              'telegram_id': Number(user.id),
+              'Добавился в чат': 'да',
             })
             if (newRecord?.record?.id) {
               await setMemberAdminFlag(newRecord.record.id)
@@ -357,7 +357,12 @@ try {
             id: member.user_id,
           })
           try {
-            await createClubMember(member)
+            await createClubMember({
+              'Имя, фамилия': name,
+              'Ник в ТГ': member.username ? `@${member.username}` : (member.first_name || ''),
+              'telegram_id': Number(member.user_id),
+              'Добавился в чат': 'да',
+            })
             console.log('✅ Created Fillout record for:', name)
             added.push(member)
           } catch (e) {
@@ -513,6 +518,42 @@ try {
           }
         } catch (err) {
           console.error('❌ Ошибка создания квитанции GreenInvoice:', err)
+        }
+
+        if (body.name && telegramId && !/доступ|вебинар/i.test(body.name)) {
+          try {
+            const nameParts = body.name.split(' — ')
+            const tariffTitle = nameParts[0] || ''
+            const subscription = nameParts[1] || ''
+
+            let tgUsername = ''
+            try {
+              const chat = await bot.telegram.getChat(telegramId)
+              tgUsername = chat.username ? `@${chat.username}` : (chat.first_name || '')
+            } catch {}
+
+            const existingMember = await getClubMemberRecord(telegramId)
+            if (existingMember) {
+              await updateClubMemberFields(existingMember.id, {
+                'Тариф': tariffTitle,
+                'Подписка': subscription,
+              })
+              console.log(`[Webhook] Updated club member tariff/subscription for telegramId: ${telegramId}`)
+            } else {
+              await createClubMember({
+                'Имя, фамилия': body.client_name || '',
+                'Телефон': body.client_phone || '',
+                'Электронная почта': body.client_email || '',
+                'Тариф': tariffTitle,
+                'Подписка': subscription,
+                'telegram_id': Number(telegramId),
+                'Ник в ТГ': tgUsername,
+              })
+              console.log(`[Webhook] Created club member for telegramId: ${telegramId}`)
+            }
+          } catch (err) {
+            console.error(`[Webhook] Club member update failed for telegramId ${telegramId}:`, err.message)
+          }
         }
 
         if (/доступ|вебинар/i.test(body.name || '') && telegramId) {

@@ -205,30 +205,19 @@ export async function clearSendFlag(recordId) {
   return data
 }
 
-export async function createClubMember({ first_name, last_name, username, user_id }) {
+export async function createClubMember(fields) {
   const url = `${BASE_URL}/bases/${FILLOUT_DATABASE_ID}/tables/${CLUB_TABLE_ID}/records`
-  const name = `${first_name || ''} ${last_name || ''}`.trim()
-  const nick = username ? `@${username}` : (first_name || '')
-
-  const record = {
-    'Имя, фамилия': name,
-    'Ник в ТГ': nick,
-    'telegram_id': Number(user_id),
-    'Добавился в чат': 'да',
-  }
-
   const res = await fetch(url, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${FILLOUT_API_KEY}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ record }),
+    body: JSON.stringify({ record: fields }),
   })
-
   const data = await res.json()
   if (res.status >= 400) throw new Error(`createClubMember error: ${JSON.stringify(data)}`)
-  console.log('Created record for:', name, 'ID:', user_id)
+  console.log('[Fillout] Created club member:', fields['telegram_id'] || fields['Имя, фамилия'])
   return data
 }
 
