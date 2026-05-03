@@ -373,7 +373,8 @@ adminWebinarScene.action('webinar:confirm', async (ctx) => {
     const textPractice15m =
       `Через 15 минут начинаем! 🎙 «${d.title}» с ${d.speaker}. ` +
       `Ссылка на Zoom: ${zoomOrContact} ` +
-      `Запись — ${d.pricePractice}₪: 👉 ${linkPractice}`
+      `Запись в ваш тариф не входит. Хотите сохранить — доплата ${d.pricePractice}₪: 👉 ${linkPractice} ` +
+      `Есть вопросы или не получается подключиться? Пишите @where_is_themoney`
 
     const textAccess24 =
       `Привет! 👋 Завтра, ${datePart} в ${timePart} — вебинар «${d.title}» с ${d.speaker}. ` +
@@ -388,7 +389,8 @@ adminWebinarScene.action('webinar:confirm', async (ctx) => {
 
     const textAccess15m =
       `Через 15 минут начинаем! 🎙 «${d.title}» с ${d.speaker}. ` +
-      `Ссылка на Zoom: ${zoomOrContact}`
+      `Ссылка на Zoom: ${zoomOrContact} ` +
+      `Есть вопросы или не получается подключиться? Пишите @where_is_themoney`
 
     // ── Создание 7 записей в MESSAGE table + планирование отправки ────────────
     const records = [
