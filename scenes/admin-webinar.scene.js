@@ -432,6 +432,35 @@ adminWebinarScene.action('webinar:confirm', async (ctx) => {
               }
             }
             console.log(`[Webinar] Sent ${rec.tariff} @ ${label} → ${targets.length} members`)
+
+            // БАЗА 24h → пометить вебинар как активный
+            if (rec.tariff === 'БАЗА') {
+              try {
+                await updateMessage(recordId, { Active: true })
+                console.log(`[Webinar] Set Active=true for БАЗА message ${recordId}`)
+              } catch (e) {
+                console.error(`[Webinar] Failed to set Active=true:`, e.message)
+              }
+            }
+
+            // 15-минутное сообщение → деактивировать все записи этого вебинара
+            if (rec.text.startsWith('Через 15 минут')) {
+              try {
+                const thisSend = new Date(rec.sendTime).getTime()
+                const allMsgs = await getMessages()
+                const toDeactivate = allMsgs.filter(m => {
+                  const t = m.fields['Время рассылки']
+                  if (!t) return false
+                  return Math.abs(new Date(t).getTime() - thisSend) <= 25 * 60 * 60 * 1000
+                })
+                for (const r of toDeactivate) {
+                  await updateMessage(r.id, { Active: false })
+                }
+                console.log(`[Webinar] Set Active=false on ${toDeactivate.length} webinar records`)
+              } catch (e) {
+                console.error(`[Webinar] Failed to deactivate webinar records:`, e.message)
+              }
+            }
           } catch (e) {
             console.error(`[Webinar] Scheduled send error (${rec.tariff} @ ${label}):`, e.message)
           }

@@ -570,15 +570,8 @@ try {
               console.log(`[Webhook] Updated Вебинар field for telegramId: ${telegramId} → ${dateStr}`)
             }
             const messages = await getMessages()
-            const now = Date.now()
-            const recent = messages
-              .filter(m => m.fields['ZOOM_URL'] && m.fields['Время рассылки'])
-              .filter(m => {
-                const t = new Date(m.fields['Время рассылки']).getTime()
-                return t > now - 3 * 60 * 60 * 1000
-              })
-              .sort((a, b) => new Date(a.fields['Время рассылки']) - new Date(b.fields['Время рассылки']))
-            const zoomUrl = recent[0]?.fields['ZOOM_URL'] || null
+            const activeWebinar = messages.find(m => m.fields['Active'] === true && m.fields['ZOOM_URL'])
+            const zoomUrl = activeWebinar?.fields['ZOOM_URL'] || null
             const webinarMsg = zoomUrl
               ? `✅ Оплата получена!\nСсылка на вебинар: ${zoomUrl}`
               : '✅ Оплата получена!\nСсылка на Zoom придёт вам в боте незадолго до начала вебинара.'

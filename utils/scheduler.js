@@ -1,5 +1,5 @@
 import moment from 'moment-timezone'
-import { getMessages, getClubMembers, clearSendFlag } from '../integrations/fillout.js'
+import { getMessages, getClubMembers, clearSendFlag, updateMessage } from '../integrations/fillout.js'
 
 const SCHEDULER_ID = Math.random().toString(36).substring(7)
 console.log('[Scheduler] Instance ID:', SCHEDULER_ID)
@@ -108,6 +108,38 @@ async function sendBroadcast(bot, msg) {
   }
 
   console.log(`[Scheduler ${SCHEDULER_ID}] Sent to ${sent} recipients`)
+
+  // БАЗА 24h → пометить вебинар как активный
+  if (tariff === 'БАЗА') {
+    try {
+      await updateMessage(id, { Active: true })
+      console.log(`[Scheduler ${SCHEDULER_ID}] Set Active=true for БАЗА message ${id}`)
+    } catch (e) {
+      console.error(`[Scheduler ${SCHEDULER_ID}] Failed to set Active=true:`, e.message)
+    }
+  }
+
+  // 15-минутное сообщение → деактивировать все записи этого вебинара
+  if (text && text.startsWith('Через 15 минут')) {
+    try {
+      const sendTimeStr = msg.fields['Время рассылки']
+      const thisSend = sendTimeStr ? new Date(sendTimeStr).getTime() : null
+      if (thisSend) {
+        const allMsgs = await getMessages()
+        const toDeactivate = allMsgs.filter(m => {
+          const t = m.fields['Время рассылки']
+          if (!t) return false
+          return Math.abs(new Date(t).getTime() - thisSend) <= 25 * 60 * 60 * 1000
+        })
+        for (const rec of toDeactivate) {
+          await updateMessage(rec.id, { Active: false })
+        }
+        console.log(`[Scheduler ${SCHEDULER_ID}] Set Active=false on ${toDeactivate.length} webinar records`)
+      }
+    } catch (e) {
+      console.error(`[Scheduler ${SCHEDULER_ID}] Failed to deactivate webinar records:`, e.message)
+    }
+  }
 
   // После успешной отправки
   scheduledTimeouts.delete(msg.id)
