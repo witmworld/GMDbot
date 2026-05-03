@@ -40,7 +40,15 @@ aiScene.enter(async (ctx) => {
   await runAI(ctx, question)
 })
 
-aiScene.on('text', async (ctx) => {
+aiScene.command('start', (ctx) => {
+  ctx.session = {}
+  return ctx.scene.enter('START')
+})
+aiScene.command('menu', (ctx) => ctx.scene.enter('MENU'))
+aiScene.command('admin_menu', (ctx) => ctx.scene.enter('ADMIN_MENU'))
+
+aiScene.on('text', async (ctx, next) => {
+  if (ctx.message.text.startsWith('/')) return next()
   await runAI(ctx, ctx.message.text)
 })
 
