@@ -355,7 +355,6 @@ adminWebinarScene.action('webinar:confirm', async (ctx) => {
       `Привет! 👋 Завтра, ${datePart} в ${timePart} — вебинар «${d.title}» с ${d.speaker}. ` +
       `${d.description} ` +
       `Хотите присоединиться онлайн или получить запись — доплата ${d.priceBase}₪: 👉 ${linkBase} ` +
-      `${zoomLine}` +
       `Есть вопросы? Пишите @where_is_themoney`
 
     const textPractice24 =
@@ -393,13 +392,13 @@ adminWebinarScene.action('webinar:confirm', async (ctx) => {
 
     // ── Создание 7 записей в MESSAGE table + планирование отправки ────────────
     const records = [
-      { text: textBase24,      tariff: 'БАЗА',     sendTime: t24h.toISOString(), zoomUrl: zoom },
-      { text: textPractice24,  tariff: 'ПРАКТИКА', sendTime: t24h.toISOString(), zoomUrl: zoom },
-      { text: textPractice1h,  tariff: 'ПРАКТИКА', sendTime: t1h.toISOString(),  zoomUrl: zoom },
-      { text: textPractice15m, tariff: 'ПРАКТИКА', sendTime: t15m.toISOString(), zoomUrl: zoom },
-      { text: textAccess24,    tariff: 'ДОСТУП',   sendTime: t24h.toISOString(), zoomUrl: zoom },
-      { text: textAccess1h,    tariff: 'ДОСТУП',   sendTime: t1h.toISOString(),  zoomUrl: zoom },
-      { text: textAccess15m,   tariff: 'ДОСТУП',   sendTime: t15m.toISOString(), zoomUrl: zoom },
+      { text: textBase24,      tariff: 'БАЗА',     sendTime: t24h.format(), zoomUrl: zoom },
+      { text: textPractice24,  tariff: 'ПРАКТИКА', sendTime: t24h.format(), zoomUrl: zoom },
+      { text: textPractice1h,  tariff: 'ПРАКТИКА', sendTime: t1h.format(),  zoomUrl: zoom },
+      { text: textPractice15m, tariff: 'ПРАКТИКА', sendTime: t15m.format(), zoomUrl: zoom },
+      { text: textAccess24,    tariff: 'ДОСТУП',   sendTime: t24h.format(), zoomUrl: zoom },
+      { text: textAccess1h,    tariff: 'ДОСТУП',   sendTime: t1h.format(),  zoomUrl: zoom },
+      { text: textAccess15m,   tariff: 'ДОСТУП',   sendTime: t15m.format(), zoomUrl: zoom },
     ]
 
     for (const rec of records) {
