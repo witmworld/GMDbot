@@ -416,6 +416,32 @@ try {
     console.error('[BOT ERROR] Update:', JSON.stringify(ctx.update))
   })
 
+  app.get('/debug-members', async (req, res) => {
+    try {
+      const members = await getClubMembers()
+
+      const counts = {}
+      for (const m of members) {
+        const t = m.fields['Тариф'] ?? '(пусто)'
+        counts[t] = (counts[t] || 0) + 1
+      }
+
+      const sample = members
+        .filter(m => {
+          const t = String(m.fields['Тариф'] ?? '')
+          return t.includes('АЗА') || t.includes('РАКТ')
+        })
+        .slice(0, 2)
+        .map(m => ({ Тариф: m.fields['Тариф'], telegram_id: m.fields['telegram_id'] }))
+
+      const result = { total: members.length, byTariff: counts, sample }
+      console.log('[debug-members]', JSON.stringify(result, null, 2))
+      res.json(result)
+    } catch (e) {
+      res.status(500).json({ error: e.message })
+    }
+  })
+
   app.get('/health', (req, res) => {
     console.log('[Health] Check received')
     res.json({
