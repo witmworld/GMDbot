@@ -160,11 +160,11 @@ async function sendBroadcast(bot, msg) {
 
   console.log(`[Scheduler ${SCHEDULER_ID}] Sent to ${sent} recipients`)
 
-  // БАЗА 24h → пометить вебинар как активный
-  if (tariff === 'БАЗА') {
+  // 24h webinar broadcast → mark as active so scheduler won't re-send after restart
+  if (tariff === 'БАЗА' || tariff === 'ПРАКТИКА') {
     try {
       await updateMessage(id, { Active: true })
-      console.log(`[Scheduler ${SCHEDULER_ID}] Set Active=true for БАЗА message ${id}`)
+      console.log(`[Scheduler ${SCHEDULER_ID}] Set Active=true for ${tariff} message ${id}`)
     } catch (e) {
       console.error(`[Scheduler ${SCHEDULER_ID}] Failed to set Active=true:`, e.message)
     }
