@@ -3,7 +3,7 @@ import fetch from 'node-fetch'
 
 const ALLPAY_LOGIN = process.env.ALLPAY_LOGIN
 const ALLPAY_KEY = process.env.ALLPAY_KEY
-const WEBHOOK_URL = 'https://gmd-bot-production.up.railway.app/payment/webhook'
+const WEBHOOK_URL = `${process.env.WEBHOOK_DOMAIN}/payment/webhook`
 
 /**
  * SHA256 подпись запроса:

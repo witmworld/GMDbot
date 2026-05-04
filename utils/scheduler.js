@@ -1,5 +1,6 @@
 import moment from 'moment-timezone'
 import { getMessages, getClubMembers, clearSendFlag, updateMessage } from '../integrations/fillout.js'
+import { createPaymentLink } from '../integrations/allpay.js'
 
 const SCHEDULER_ID = Math.random().toString(36).substring(7)
 console.log('[Scheduler] Instance ID:', SCHEDULER_ID)
@@ -94,16 +95,43 @@ async function sendBroadcast(bot, msg) {
     return userTariff === tariff
   })
 
+  // 24h webinar messages — create individual payment link per member
+  const is24hWebinar = text.startsWith('Привет! 👋 Завтра') && (broadcastBase || broadcastPractice)
+  const priceInText  = is24hWebinar
+    ? (text.match(/(\d+(?:\.\d+)?)₪: 👉 (https?:\/\/\S+)/) || null)
+    : null
+
   let sent = 0
   for (const member of targets) {
+    const tgId = String(member.fields['telegram_id'])
+    let messageText = text
+
+    if (is24hWebinar && priceInText) {
+      const amount      = parseFloat(priceInText[1])
+      const oldUrl      = priceInText[2]
+      const suffix      = Math.random().toString(36).substring(2, 7)
+      const orderId     = broadcastBase
+        ? `${tgId}_webinar_base_${Date.now()}_${suffix}`
+        : `${tgId}_webinar_practice_${Date.now()}_${suffix}`
+      const description = broadcastBase
+        ? 'Доступ на вебинар - БАЗА'
+        : 'Запись вебинара - ПРАКТИКА'
+      try {
+        const newUrl  = await createPaymentLink({ orderId, amount, description })
+        messageText   = text.replace(oldUrl, newUrl)
+      } catch (e) {
+        console.error(`[Scheduler ${SCHEDULER_ID}] createPaymentLink failed for ${tgId}:`, e.message)
+      }
+    }
+
     try {
-      await bot.telegram.sendMessage(String(member.fields['telegram_id']), text, {
+      await bot.telegram.sendMessage(tgId, messageText, {
         parse_mode: 'Markdown',
         link_preview_options: { is_disabled: true }
       })
       sent++
     } catch (e) {
-      console.error(`[Scheduler ${SCHEDULER_ID}] sendMessage failed for ${member.fields['telegram_id']}:`, e.message)
+      console.error(`[Scheduler ${SCHEDULER_ID}] sendMessage failed for ${tgId}:`, e.message)
     }
   }
 
