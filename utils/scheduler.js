@@ -97,30 +97,29 @@ async function sendBroadcast(bot, msg) {
 
   // 24h webinar messages — create individual payment link per member
   const is24hWebinar = text.startsWith('Привет! 👋 Завтра') && (broadcastBase || broadcastPractice)
-  const priceInText  = is24hWebinar
-    ? (text.match(/(\d+(?:\.\d+)?)₪: 👉 (https?:\/\/\S+)/) || null)
-    : null
 
   let sent = 0
   for (const member of targets) {
     const tgId = String(member.fields['telegram_id'])
     let messageText = text
 
-    if (is24hWebinar && priceInText) {
-      const amount      = parseFloat(priceInText[1])
-      const oldUrl      = priceInText[2]
-      const suffix      = Math.random().toString(36).substring(2, 7)
-      const orderId     = broadcastBase
-        ? `${tgId}_webinar_base_${Date.now()}_${suffix}`
-        : `${tgId}_webinar_practice_${Date.now()}_${suffix}`
-      const description = broadcastBase
+    if (is24hWebinar) {
+      const amount        = broadcastBase ? 50 : 30
+      const orderId       = broadcastBase
+        ? `${tgId}_webinar_base_${Date.now()}`
+        : `${tgId}_webinar_practice_${Date.now()}`
+      const description   = broadcastBase
         ? 'Доступ на вебинар - БАЗА'
         : 'Запись вебинара - ПРАКТИКА'
+      const customerPhone = member.fields['Телефон'] || ''
+      const customerEmail = member.fields['Электронная почта '] || ''
+
       try {
-        const newUrl  = await createPaymentLink({ orderId, amount, description })
-        messageText   = text.replace(oldUrl, newUrl)
+        const paymentUrl = await createPaymentLink({ orderId, amount, description, customerPhone, customerEmail })
+        messageText = text.replace(/(₪: 👉 )https?:\/\/\S+/, `$1${paymentUrl}`)
       } catch (e) {
         console.error(`[Scheduler ${SCHEDULER_ID}] createPaymentLink failed for ${tgId}:`, e.message)
+        messageText = text.replace(/₪: 👉 https?:\/\/\S+/, '₪: для оплаты пишите @where_is_themoney')
       }
     }
 
