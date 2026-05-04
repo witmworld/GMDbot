@@ -45,6 +45,18 @@ async function sendBroadcast(bot, msg) {
     return
   }
 
+  console.log(`[Scheduler] All members count:`, allMembers.length)
+  console.log(`[Scheduler] БАЗА members:`, allMembers.filter(m => m.fields['Тариф'] === 'БАЗА').length)
+  console.log(`[Scheduler] ПРАКТИКА members:`, allMembers.filter(m => m.fields['Тариф'] === 'ПРАКТИКА').length)
+  console.log(`[Scheduler] БАЗА with telegram_id:`, allMembers.filter(m => m.fields['Тариф'] === 'БАЗА' && m.fields['telegram_id']).length)
+  console.log(`[Scheduler] БАЗА sample (first 3):`, JSON.stringify(
+    allMembers.filter(m => m.fields['Тариф'] === 'БАЗА').slice(0, 3).map(m => ({
+      Тариф: m.fields['Тариф'],
+      telegram_id: m.fields['telegram_id'],
+      Вебинар: m.fields['Вебинар'],
+    }))
+  ))
+
   const broadcastAll      = !tariff || tariff === 'ВСЕ' || tariff === 'КЛУБ'
   const broadcastPremium  = tariff === 'ПРЕМИУМ'
   const broadcastBase     = tariff === 'БАЗА'
