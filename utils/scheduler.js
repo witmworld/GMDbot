@@ -8,13 +8,19 @@ console.log('[Scheduler] Instance ID:', SCHEDULER_ID)
 const scheduledTimeouts = new Map()
 
 // Возвращает true если участник оплатил вебинар не более 30 дней назад.
-// Поле «Вебинар» хранится в формате dd/mm/yyyy.
+// Поле «Вебинар» может быть ISO строкой или dd/mm/yyyy.
 export function hasActiveWebinarAccess(member) {
   const raw = member.fields['Вебинар']
   if (!raw) return false
-  const [dd, mm, yyyy] = raw.split('/')
-  if (!dd || !mm || !yyyy) return false
-  const paid = new Date(parseInt(yyyy), parseInt(mm) - 1, parseInt(dd))
+  let paid
+  if (raw.includes('T') || raw.includes('-')) {
+    paid = new Date(raw)
+  } else {
+    const [dd, mm, yyyy] = raw.split('/')
+    if (!dd || !mm || !yyyy) return false
+    paid = new Date(parseInt(yyyy), parseInt(mm) - 1, parseInt(dd))
+  }
+  if (isNaN(paid.getTime())) return false
   const diffDays = (Date.now() - paid.getTime()) / (1000 * 60 * 60 * 24)
   return diffDays <= 30
 }
