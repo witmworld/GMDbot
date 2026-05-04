@@ -128,16 +128,22 @@ async function sendBroadcast(bot, msg) {
 
       try {
         const paymentUrl = await createPaymentLink({ orderId, amount, description, customerPhone, customerEmail })
-        messageText = text.replace(/(₪: 👉 )https?:\/\/\S+/, `$1${paymentUrl}`)
+        messageText = text.replace(
+          /₪: 👉 <a href="https?:\/\/[^"]*">[^<]*<\/a>/,
+          `₪: 👉 <a href="${paymentUrl}">Оплатить</a>`
+        )
       } catch (e) {
         console.error(`[Scheduler ${SCHEDULER_ID}] createPaymentLink failed for ${tgId}:`, e.message)
-        messageText = text.replace(/₪: 👉 https?:\/\/\S+/, '₪: для оплаты пишите @where_is_themoney')
+        messageText = text.replace(
+          /₪: 👉 <a href="https?:\/\/[^"]*">[^<]*<\/a>/,
+          '₪: для оплаты пишите @where_is_themoney'
+        )
       }
     }
 
     try {
       await bot.telegram.sendMessage(tgId, messageText, {
-        parse_mode: 'Markdown',
+        parse_mode: 'HTML',
         link_preview_options: { is_disabled: true }
       })
       sent++

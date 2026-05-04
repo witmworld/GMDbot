@@ -339,10 +339,12 @@ adminWebinarScene.action('webinar:confirm', async (ctx) => {
     const datePart  = dateMatch ? dateMatch[1] : d.dateText
     const timePart  = dateMatch ? dateMatch[2] : ''
 
+    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
     const zoom          = d.zoomUrl
-    const zoomLine      = zoom ? `Ссылка на Zoom: ${zoom}\n` : ''
-    const zoomOrLater   = zoom || 'придёт позже'
-    const zoomOrContact = zoom || 'уточните у @where_is_themoney'
+    const zoomLine      = zoom ? `<a href="${zoom}">Ссылка на Zoom</a>\n` : ''
+    const zoomOrLater   = zoom ? `<a href="${zoom}">Ссылка на Zoom</a>` : 'Ссылка на Zoom придёт позже'
+    const zoomOrContact = zoom ? `<a href="${zoom}">Ссылка на Zoom</a>` : 'уточните у @where_is_themoney'
 
     // ── Времена рассылки ──────────────────────────────────────────────────────
     const t24h = moment.tz(d.dateIso, 'Asia/Jerusalem').subtract(24, 'hours')
@@ -352,44 +354,44 @@ adminWebinarScene.action('webinar:confirm', async (ctx) => {
     // ── Тексты сообщений ──────────────────────────────────────────────────────
 
     const textBase24 =
-      `Привет! 👋 Завтра, ${datePart} в ${timePart} — вебинар «${d.title}» с ${d.speaker}. ` +
-      `${d.description} ` +
-      `Хотите присоединиться онлайн или получить запись — доплата ${d.priceBase}₪: 👉 ${linkBase} ` +
+      `Привет! 👋 Завтра, ${datePart} в ${timePart} — вебинар «${esc(d.title)}» с ${esc(d.speaker)}. ` +
+      `${esc(d.description)} ` +
+      `Хотите присоединиться онлайн или получить запись — доплата ${d.priceBase}₪: 👉 <a href="${linkBase}">Оплатить</a> ` +
       `Есть вопросы? Пишите @where_is_themoney`
 
     const textPractice24 =
-      `Привет! 👋 Завтра, ${datePart} в ${timePart} — вебинар «${d.title}» с ${d.speaker}. ` +
-      `${d.description} ` +
-      `Запись в ваш тариф не входит, но можно исправить — ${d.pricePractice}₪: 👉 ${linkPractice} ` +
+      `Привет! 👋 Завтра, ${datePart} в ${timePart} — вебинар «${esc(d.title)}» с ${esc(d.speaker)}. ` +
+      `${esc(d.description)} ` +
+      `Запись в ваш тариф не входит, но можно исправить — ${d.pricePractice}₪: 👉 <a href="${linkPractice}">Оплатить</a> ` +
       `${zoomLine}` +
       `Есть вопросы? Пишите @where_is_themoney`
 
     const textPractice1h =
-      `Привет! Через час — вебинар «${d.title}» с ${d.speaker}. ` +
-      `Запись не входит в ваш тариф — ${d.pricePractice}₪: 👉 ${linkPractice} ` +
-      `Ссылка на Zoom: ${zoomOrLater} ` +
+      `Привет! Через час — вебинар «${esc(d.title)}» с ${esc(d.speaker)}. ` +
+      `Запись не входит в ваш тариф — ${d.pricePractice}₪: 👉 <a href="${linkPractice}">Оплатить</a> ` +
+      `${zoomOrLater} ` +
       `Есть вопросы? Пишите @where_is_themoney`
 
     const textPractice15m =
-      `Через 15 минут начинаем! 🎙 «${d.title}» с ${d.speaker}. ` +
-      `Ссылка на Zoom: ${zoomOrContact} ` +
-      `Запись в ваш тариф не входит. Хотите сохранить — доплата ${d.pricePractice}₪: 👉 ${linkPractice} ` +
+      `Через 15 минут начинаем! 🎙 «${esc(d.title)}» с ${esc(d.speaker)}. ` +
+      `${zoomOrContact} ` +
+      `Запись в ваш тариф не входит. Хотите сохранить — доплата ${d.pricePractice}₪: 👉 <a href="${linkPractice}">Оплатить</a> ` +
       `Есть вопросы или не получается подключиться? Пишите @where_is_themoney`
 
     const textAccess24 =
-      `Привет! 👋 Завтра, ${datePart} в ${timePart} — вебинар «${d.title}» с ${d.speaker}. ` +
-      `${d.description} ` +
+      `Привет! 👋 Завтра, ${datePart} в ${timePart} — вебинар «${esc(d.title)}» с ${esc(d.speaker)}. ` +
+      `${esc(d.description)} ` +
       `${zoomLine}` +
       `Есть вопросы? Пишите @where_is_themoney`
 
     const textAccess1h =
-      `Привет! Через час — вебинар «${d.title}» с ${d.speaker}. ` +
-      `Ссылка на Zoom: ${zoomOrLater} ` +
+      `Привет! Через час — вебинар «${esc(d.title)}» с ${esc(d.speaker)}. ` +
+      `${zoomOrLater} ` +
       `Есть вопросы? Пишите @where_is_themoney`
 
     const textAccess15m =
-      `Через 15 минут начинаем! 🎙 «${d.title}» с ${d.speaker}. ` +
-      `Ссылка на Zoom: ${zoomOrContact} ` +
+      `Через 15 минут начинаем! 🎙 «${esc(d.title)}» с ${esc(d.speaker)}. ` +
+      `${zoomOrContact} ` +
       `Есть вопросы или не получается подключиться? Пишите @where_is_themoney`
 
     // ── Создание 7 записей в MESSAGE table + планирование отправки ────────────
@@ -426,7 +428,7 @@ adminWebinarScene.action('webinar:confirm', async (ctx) => {
             for (const member of targets) {
               try {
                 await telegram.sendMessage(String(member.fields['telegram_id']), rec.text, {
-                  parse_mode: 'Markdown',
+                  parse_mode: 'HTML',
                   link_preview_options: { is_disabled: true }
                 })
               } catch (e) {
