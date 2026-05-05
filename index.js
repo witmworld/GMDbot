@@ -21,7 +21,7 @@ import { adminWebinarScene } from './scenes/admin-webinar.scene.js'
 import { menuScene } from './scenes/menu.scene.js'
 import { subscribeScene } from './scenes/subscribe.scene.js'
 import { scanGroupMembers } from './utils/group-scanner.js'
-import { startScheduler } from './utils/scheduler.js'
+import { startScheduler, hasActiveWebinarAccess } from './utils/scheduler.js'
 import { getTariffs, getClubMembers, getClubMember, createClubMember, getClubMemberRecord, setMemberAdminFlag, updateClubMemberFields, getMessages } from './integrations/fillout.js'
 import { findLeadByOrderId, updateLeadPaymentStatus, updateLeadFields } from './integrations/bitrix.js'
 import { createReceipt } from './integrations/greeninvoice.js'
@@ -431,10 +431,18 @@ try {
           const t = String(m.fields['Тариф'] ?? '')
           return t.includes('АЗА') || t.includes('РАКТ')
         })
-        .slice(0, 2)
-        .map(m => ({ Тариф: m.fields['Тариф'], telegram_id: m.fields['telegram_id'] }))
+        .slice(0, 5)
+        .map(m => ({
+          Тариф: m.fields['Тариф'],
+          telegram_id: m.fields['telegram_id'],
+          Вебинар: m.fields['Вебинар'] ?? null,
+          hasAccess: hasActiveWebinarAccess(m)
+        }))
 
-      const result = { total: members.length, byTariff: counts, sample }
+      const baseNoAccess  = members.filter(m => m.fields['Тариф'] === 'БАЗА'     && m.fields['telegram_id'] && !hasActiveWebinarAccess(m)).length
+      const practNoAccess = members.filter(m => m.fields['Тариф'] === 'ПРАКТИКА' && m.fields['telegram_id'] && !hasActiveWebinarAccess(m)).length
+
+      const result = { total: members.length, byTariff: counts, baseNoAccess, practNoAccess, sample }
       console.log('[debug-members]', JSON.stringify(result, null, 2))
       res.json(result)
     } catch (e) {
@@ -514,7 +522,7 @@ try {
         console.error('❌ Ошибка создания квитанции (external):', err)
       }
     } else if (body.status === '1' && body.order_id) {
-      const telegramId = body.order_id.split('_')[0]
+      const telegramId = body.add_field || body.order_id.split('_')[0]
       try {
         const lead = await findLeadByOrderId(body.order_id)
         if (lead?.ID) {

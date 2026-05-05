@@ -55,6 +55,14 @@ export function verifyWebhookSignature(params) {
   return received === computed
 }
 
+export function buildPaymentUrl(baseUrl, { clientEmail, clientName, telegramId } = {}) {
+  const params = new URLSearchParams()
+  if (clientName)  params.set('client_name', clientName)
+  if (clientEmail) params.set('client_email', clientEmail)
+  if (telegramId)  params.set('add_field', String(telegramId))
+  return `${baseUrl}?${params.toString()}`
+}
+
 /**
  * Создание платежа
  */

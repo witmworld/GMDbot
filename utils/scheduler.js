@@ -1,6 +1,6 @@
 import moment from 'moment-timezone'
 import { getMessages, getClubMembers, clearSendFlag, updateMessage } from '../integrations/fillout.js'
-import { createPaymentLink } from '../integrations/allpay.js'
+import { buildPaymentUrl } from '../integrations/allpay.js'
 
 const SCHEDULER_ID = Math.random().toString(36).substring(7)
 console.log('[Scheduler] Instance ID:', SCHEDULER_ID)
@@ -122,29 +122,18 @@ async function sendBroadcast(bot, msg) {
     let messageText = text
 
     if (is24hWebinar) {
-      const amount        = broadcastBase ? 50 : 30
-      const orderId       = broadcastBase
-        ? `${tgId}_webinar_base_${Date.now()}`
-        : `${tgId}_webinar_practice_${Date.now()}`
-      const description   = broadcastBase
-        ? 'Доступ на вебинар - БАЗА'
-        : 'Запись вебинара - ПРАКТИКА'
-      const customerPhone = member.fields['Телефон'] || ''
-      const customerEmail = member.fields['Электронная почта '] || ''
-
-      try {
-        const paymentUrl = await createPaymentLink({ orderId, amount, description, customerPhone, customerEmail })
-        messageText = text.replace(
-          /₪: 👉 <a href="https?:\/\/[^"]*">[^<]*<\/a>/,
-          `₪: 👉 <a href="${paymentUrl}">Оплатить</a>`
-        )
-      } catch (e) {
-        console.error(`[Scheduler ${SCHEDULER_ID}] createPaymentLink failed for ${tgId}:`, e.message)
-        messageText = text.replace(
-          /₪: 👉 <a href="https?:\/\/[^"]*">[^<]*<\/a>/,
-          '₪: для оплаты пишите @where_is_themoney'
-        )
-      }
+      const baseUrl = broadcastBase
+        ? process.env.ALLPAY_LINK_BASE
+        : process.env.ALLPAY_LINK_PRACTICE
+      const paymentUrl = buildPaymentUrl(baseUrl, {
+        clientName:  member.fields['Имя, фамилия'] || '',
+        clientEmail: member.fields['Электронная почта '] || '',
+        telegramId:  member.fields['telegram_id'],
+      })
+      messageText = text.replace(
+        /₪: 👉 <a href="https?:\/\/[^"]*">[^<]*<\/a>/,
+        `₪: 👉 <a href="${paymentUrl}">Оплатить</a>`
+      )
     }
 
     try {
