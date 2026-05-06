@@ -113,13 +113,14 @@ adminReceiptsScene.action('receipts:confirm', async (ctx) => {
 
   for (const row of receiptsToCreate) {
     try {
+      const description = row.items ? row.items.split(' x')[0] : 'תרומה'
       await createReceipt({
         clientName: row.client_name || '',
         clientEmail: row.client_email || '',
         clientPhone: row.client_phone || '',
         amount: Number(row.amount) || 0,
-        description: 'תרומה',
-        orderId: row.order_id || ''
+        description,
+        orderId: String(row.id || '')
       })
       created++
 
