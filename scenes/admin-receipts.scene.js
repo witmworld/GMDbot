@@ -114,6 +114,7 @@ adminReceiptsScene.action('receipts:confirm', async (ctx) => {
   for (const row of receiptsToCreate) {
     try {
       const description = row.items ? row.items.split(' x')[0] : 'תרומה'
+      console.log('[Admin Receipts] Creating receipt:', { clientName: row.client_name, clientEmail: row.client_email, amount: row.amount, description, orderId: row.id })
       await createReceipt({
         clientName: row.client_name || '',
         clientEmail: row.client_email || '',
@@ -129,7 +130,7 @@ adminReceiptsScene.action('receipts:confirm', async (ctx) => {
         await ctx.reply(`⏳ Создаю квитанции... ${created}/${receiptsToCreate.length}`)
       }
     } catch (err) {
-      console.error('[Admin Receipts] createReceipt error:', err)
+      console.error('[Admin Receipts] Failed:', row.client_email, err.message, err.stack?.split('\n')[1])
       errors.push(`${row.client_email}: ${err.message}`)
     }
   }
