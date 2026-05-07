@@ -21,10 +21,6 @@ adminReceiptsScene.action('back:ADMIN_MENU', async (ctx) => {
   return ctx.scene.enter('ADMIN_MENU')
 })
 
-adminReceiptsScene.on('callback_query', async (ctx) => {
-  await ctx.answerCbQuery()
-})
-
 adminReceiptsScene.on('document', async (ctx) => {
   const file = ctx.message.document
 
