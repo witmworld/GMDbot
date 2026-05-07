@@ -521,6 +521,38 @@ try {
       } catch (err) {
         console.error('❌ Ошибка создания квитанции (external):', err)
       }
+
+      if (/доступ|вебинар/i.test(body.name || '') && body.client_email) {
+        try {
+          const allMembers = await getClubMembers()
+          const memberRecord = allMembers.find(m =>
+            (m.fields['Электронная почта '] || '').toLowerCase() === body.client_email.toLowerCase()
+          )
+          if (memberRecord) {
+            console.log(`[Webhook] Found member by email: ${body.client_email}, updating Вебинар field`)
+            const today = new Date()
+            const dd   = String(today.getDate()).padStart(2, '0')
+            const mm   = String(today.getMonth() + 1).padStart(2, '0')
+            const yyyy = today.getFullYear()
+            await updateClubMemberFields(memberRecord.id, { 'Вебинар': `${dd}/${mm}/${yyyy}` })
+
+            const tgId = memberRecord.fields['telegram_id']
+            if (tgId) {
+              const messages = await getMessages()
+              const activeWebinar = messages.find(m => m.fields['Active'] === true && m.fields['ZOOM_URL'])
+              const zoomUrl = activeWebinar?.fields['ZOOM_URL'] || null
+              const webinarMsg = zoomUrl
+                ? `✅ Оплата получена!\nСсылка на вебинар: ${zoomUrl}`
+                : '✅ Оплата получена!\nСсылка на Zoom придёт вам в боте незадолго до начала вебинара.'
+              await bot.telegram.sendMessage(String(tgId), webinarMsg)
+            }
+          } else {
+            console.log(`[Webhook] Member not found by email: ${body.client_email}`)
+          }
+        } catch (err) {
+          console.error('[Webhook] Webinar update by email failed:', err.message)
+        }
+      }
     } else if (body.status === '1' && body.order_id) {
       const telegramId = body.add_field || body.order_id.split('_')[0]
       try {

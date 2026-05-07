@@ -1,7 +1,7 @@
 import { Scenes, Markup } from 'telegraf'
 import moment from 'moment-timezone'
 import { isAdmin } from '../utils/adminCheck.js'
-import { createPaymentLink } from '../integrations/allpay.js'
+import { buildPaymentUrl } from '../integrations/allpay.js'
 import { createMessage, updateMessage, getMessages, getClubMembers, clearSendFlag } from '../integrations/fillout.js'
 import { hasActiveWebinarAccess } from '../utils/scheduler.js'
 
@@ -317,21 +317,9 @@ adminWebinarScene.action('webinar:confirm', async (ctx) => {
 
   try {
     // ── Платёжные ссылки ─────────────────────────────────────────────────────
-    const orderIdBase     = `webinar_base_${Date.now()}`
-    const orderIdPractice = `webinar_practice_${Date.now() + 1}`
-
-    const linkBase = await createPaymentLink({
-      orderId:     orderIdBase,
-      amount:      d.priceBase,
-      description: `Доступ на вебинар - БАЗА (${d.dateText})`,
-    })
+    const linkBase     = buildPaymentUrl(process.env.ALLPAY_LINK_BASE,     { clientName: '', clientEmail: '', telegramId: '' })
+    const linkPractice = buildPaymentUrl(process.env.ALLPAY_LINK_PRACTICE, { clientName: '', clientEmail: '', telegramId: '' })
     console.log(`[Webinar] Payment link БАЗА: ${linkBase}`)
-
-    const linkPractice = await createPaymentLink({
-      orderId:     orderIdPractice,
-      amount:      d.pricePractice,
-      description: `Запись вебинара - ПРАКТИКА (${d.dateText})`,
-    })
     console.log(`[Webinar] Payment link ПРАКТИКА: ${linkPractice}`)
 
     // ── Вспомогательные переменные ───────────────────────────────────────────
