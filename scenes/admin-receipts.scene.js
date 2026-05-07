@@ -99,52 +99,58 @@ adminReceiptsScene.on('document', async (ctx) => {
 // Обработка подтверждения
 adminReceiptsScene.action('receipts:confirm', async (ctx) => {
   await ctx.answerCbQuery()
+  console.log('[Admin Receipts] Confirm pressed, receiptsToCreate:', JSON.stringify(ctx.session.receiptsToCreate?.length))
 
-  const receiptsToCreate = ctx.session.receiptsToCreate || []
+  try {
+    const receiptsToCreate = ctx.session.receiptsToCreate || []
 
-  if (receiptsToCreate.length === 0) {
-    return ctx.reply('❌ Нет квитанций для создания')
-  }
-
-  await ctx.reply(`⏳ Создаю ${receiptsToCreate.length} квитанций...`)
-
-  let created = 0
-  const errors = []
-
-  for (const row of receiptsToCreate) {
-    try {
-      const description = row.items ? row.items.split(' x')[0] : 'תרומה'
-      console.log('[Admin Receipts] Creating receipt:', { clientName: row.client_name, clientEmail: row.client_email, amount: row.amount, description, orderId: row.id })
-      await createReceipt({
-        clientName: row.client_name || '',
-        clientEmail: row.client_email || '',
-        clientPhone: row.client_phone || '',
-        amount: Number(row.amount) || 0,
-        description,
-        orderId: String(row.id || '')
-      })
-      created++
-
-      // Прогресс каждые 5 квитанций
-      if (created % 5 === 0 || created === receiptsToCreate.length) {
-        await ctx.reply(`⏳ Создаю квитанции... ${created}/${receiptsToCreate.length}`)
-      }
-    } catch (err) {
-      console.error('[Admin Receipts] Failed:', row.client_email, err.message, err.stack?.split('\n')[1])
-      errors.push(`${row.client_email}: ${err.message}`)
+    if (receiptsToCreate.length === 0) {
+      return ctx.reply('❌ Нет квитанций для создания')
     }
+
+    await ctx.reply(`⏳ Создаю ${receiptsToCreate.length} квитанций...`)
+
+    let created = 0
+    const errors = []
+
+    for (const row of receiptsToCreate) {
+      try {
+        const description = row.items ? row.items.split(' x')[0] : 'תרומה'
+        console.log('[Admin Receipts] Creating receipt:', { clientName: row.client_name, clientEmail: row.client_email, amount: row.amount, description, orderId: row.id })
+        await createReceipt({
+          clientName: row.client_name || '',
+          clientEmail: row.client_email || '',
+          clientPhone: row.client_phone || '',
+          amount: Number(row.amount) || 0,
+          description,
+          orderId: String(row.id || '')
+        })
+        created++
+
+        // Прогресс каждые 5 квитанций
+        if (created % 5 === 0 || created === receiptsToCreate.length) {
+          await ctx.reply(`⏳ Создаю квитанции... ${created}/${receiptsToCreate.length}`)
+        }
+      } catch (err) {
+        console.error('[Admin Receipts] Failed:', row.client_email, err.message, err.stack?.split('\n')[1])
+        errors.push(`${row.client_email}: ${err.message}`)
+      }
+    }
+
+    delete ctx.session.receiptsToCreate
+
+    await ctx.reply(
+      `✅ Готово!\n\n` +
+      `Создано: ${created}\n` +
+      `Ошибок: ${errors.length}`,
+      Markup.inlineKeyboard([
+        [Markup.button.callback('⬅️ Назад', 'back:ADMIN_MENU')]
+      ])
+    )
+  } catch (err) {
+    console.error('[Admin Receipts] FATAL ERROR:', err.message, err.stack)
+    await ctx.reply('❌ Критическая ошибка: ' + err.message)
   }
-
-  delete ctx.session.receiptsToCreate
-
-  await ctx.reply(
-    `✅ Готово!\n\n` +
-    `Создано: ${created}\n` +
-    `Ошибок: ${errors.length}`,
-    Markup.inlineKeyboard([
-      [Markup.button.callback('⬅️ Назад', 'back:ADMIN_MENU')]
-    ])
-  )
 })
 
 // Обработка отмены
