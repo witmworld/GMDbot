@@ -22,7 +22,7 @@ import { adminEventScene } from './scenes/admin-event.scene.js'
 import { menuScene } from './scenes/menu.scene.js'
 import { subscribeScene } from './scenes/subscribe.scene.js'
 import { scanGroupMembers } from './utils/group-scanner.js'
-import { startScheduler, hasActiveWebinarAccess } from './utils/scheduler.js'
+import { startScheduler, hasActiveWebinarAccess, forceSendPending } from './utils/scheduler.js'
 import { getTariffs, getClubMembers, getClubMember, createClubMember, getClubMemberRecord, setMemberAdminFlag, updateClubMemberFields, getMessages } from './integrations/fillout.js'
 import { findLeadByOrderId, updateLeadPaymentStatus, updateLeadFields } from './integrations/bitrix.js'
 import { createReceipt } from './integrations/greeninvoice.js'
@@ -449,6 +449,15 @@ try {
       res.json(result)
     } catch (e) {
       res.status(500).json({ error: e.message })
+    }
+  })
+
+  app.get('/force-send', async (req, res) => {
+    try {
+      const count = await forceSendPending(bot)
+      res.json({ ok: true, sent: count })
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message })
     }
   })
 

@@ -296,5 +296,21 @@ export function startScheduler(bot) {
   checkScheduledMessages(bot)
 }
 
+export async function forceSendPending(bot) {
+  let messages
+  try {
+    messages = await getMessages()
+  } catch (e) {
+    console.error(`[Scheduler] forceSendPending: getMessages failed:`, e.message)
+    throw e
+  }
+  const pending = messages.filter(m => m.fields['send'] === true)
+  console.log(`[Scheduler] forceSendPending: found ${pending.length} pending messages`)
+  for (const msg of pending) {
+    await sendBroadcast(bot, msg)
+  }
+  return pending.length
+}
+
 // Алиас для явного вызова при рестарте
 export { checkScheduledMessages as scheduleCheck }
