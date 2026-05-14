@@ -137,29 +137,27 @@ adminEventScene.action('event:confirm', async (ctx) => {
     const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
     const zoom          = d.zoomUrl
-    const zoomLine      = zoom ? `<a href="${zoom}">Ссылка на Zoom</a>\n` : ''
-    const zoomOrLater   = zoom ? `<a href="${zoom}">Ссылка на Zoom</a>` : 'Ссылка на Zoom придёт позже'
-    const zoomOrContact = zoom ? `<a href="${zoom}">Ссылка на Zoom</a>` : 'уточните у @where_is_themoney'
+    const zoomLine = zoom ? `<a href="${zoom}">Ссылка на Zoom</a>\n\n` : ''
 
     const t24h = moment.tz(d.dateIso, 'Asia/Jerusalem').subtract(24, 'hours')
     const t1h  = moment.tz(d.dateIso, 'Asia/Jerusalem').subtract(1, 'hour')
     const t15m = moment.tz(d.dateIso, 'Asia/Jerusalem').subtract(15, 'minutes')
 
     const text24h =
-      `Привет! 👋 Завтра, ${datePart} в ${timePart} — ${esc(d.title)} с ${esc(d.speaker)}. ` +
-      `${esc(d.description)} ` +
+      `Привет! 👋 Завтра, ${datePart} в ${timePart} — ${esc(d.title)} с ${esc(d.speaker)}.\n\n` +
+      `${esc(d.description)}\n\n` +
       `${zoomLine}` +
       `Есть вопросы? Пишите @where_is_themoney`
 
     const text1h =
-      `Привет! Через час — ${esc(d.title)} с ${esc(d.speaker)}. ` +
-      `${zoomOrLater} ` +
+      `Привет! Через час — ${esc(d.title)} с ${esc(d.speaker)}.\n\n` +
+      `${zoomLine}` +
       `Есть вопросы? Пишите @where_is_themoney`
 
     const text15m =
-      `Через 15 минут начинаем! 🎙 ${esc(d.title)} с ${esc(d.speaker)}. ` +
-      `${zoomOrContact} ` +
-      `Есть вопросы или не получается подключиться? Пишите @where_is_themoney`
+      `Через 15 минут начинаем! 🎙 ${esc(d.title)} с ${esc(d.speaker)}.\n\n` +
+      `${zoomLine}` +
+      `Есть вопросы? Пишите @where_is_themoney`
 
     const records = [
       { text: text24h, tariff: 'КЛУБ', sendTime: t24h.format(), zoomUrl: zoom },
