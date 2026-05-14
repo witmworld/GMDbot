@@ -7,14 +7,6 @@ console.log('[Scheduler] Instance ID:', SCHEDULER_ID)
 
 const scheduledTimeouts = new Map()
 
-// Накапливает статистику отправок вебинара для отчёта участникам ТЕСТ.
-// Ключ: ISO-неделя (например "2026-W20"), значение: { base, practice, access, errors, testIds }
-const webinarStats = new Map()
-
-function getWeekKey(sendTimeStr) {
-  if (!sendTimeStr) return 'unknown'
-  return moment.tz(sendTimeStr, 'Asia/Jerusalem').startOf('isoWeek').format('GGGG-[W]WW')
-}
 
 // Возвращает true если участник оплатил вебинар не более 30 дней назад.
 // Поле «Вебинар» может быть ISO строкой или dd/mm/yyyy.
@@ -203,67 +195,25 @@ async function sendBroadcast(bot, msg) {
     }
   }
 
-  // Отчёт для ТЕСТ после рассылки КЛУБ/ВСЕ (мероприятия)
-  if (broadcastAll) {
-    const testIds = targets
-      .filter(m => m.fields['Тариф'] === 'ТЕСТ')
-      .map(m => String(m.fields['telegram_id']))
-    if (testIds.length > 0) {
-      const lines = Object.entries(sentByTariff)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([t, n]) => `${t}: ${n}`)
-        .join('\n')
-      const report =
-        `📊 Отчёт рассылки (все тарифы):\n${lines}\nОшибок: ${errorsNonTest}`
-      for (const tgId of testIds) {
-        try {
-          await bot.telegram.sendMessage(tgId, report)
-          console.log(`[Scheduler ${SCHEDULER_ID}] КЛУБ report sent to ТЕСТ ${tgId}`)
-        } catch (e) {
-          console.error(`[Scheduler ${SCHEDULER_ID}] Failed to send КЛУБ report to ${tgId}:`, e.message)
-        }
+  // Отчёт для ТЕСТ-участников после каждой рассылки
+  const testTargets = targets.filter(m => m.fields['Тариф'] === 'ТЕСТ')
+  if (testTargets.length > 0) {
+    const lines = Object.entries(sentByTariff)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([t, n]) => `${t}: ${n}`)
+      .join('\n')
+    const label = tariff || 'ВСЕ'
+    const report =
+      `📊 Отчёт рассылки [${label}]:\n` +
+      `${lines || '—'}\n` +
+      `Ошибок: ${errorsNonTest}`
+    for (const m of testTargets) {
+      try {
+        await bot.telegram.sendMessage(String(m.fields['telegram_id']), report)
+        console.log(`[Scheduler ${SCHEDULER_ID}] ТЕСТ report [${label}] sent to ${m.fields['telegram_id']}`)
+      } catch (e) {
+        console.error(`[Scheduler ${SCHEDULER_ID}] Failed to send ТЕСТ report to ${m.fields['telegram_id']}:`, e.message)
       }
-    }
-  }
-
-  // Накапливаем статистику для отчёта ТЕСТ-участникам
-  const isWebinarBroadcast = broadcastBase || broadcastPractice || broadcastAccess
-  if (isWebinarBroadcast) {
-    const weekKey = getWeekKey(msg.fields['Время рассылки'])
-    const stats = webinarStats.get(weekKey) || { base: 0, practice: 0, access: 0, errors: 0, testIds: new Set() }
-
-    if (broadcastBase)     stats.base     += sentNonTest
-    if (broadcastPractice) stats.practice += sentNonTest
-    if (broadcastAccess)   stats.access   += sentNonTest
-    stats.errors += errorsNonTest
-
-    targets
-      .filter(m => m.fields['Тариф'] === 'ТЕСТ')
-      .forEach(m => stats.testIds.add(String(m.fields['telegram_id'])))
-
-    webinarStats.set(weekKey, stats)
-    console.log(`[Scheduler ${SCHEDULER_ID}] ТЕСТ stats [${weekKey}]:`, {
-      base: stats.base, practice: stats.practice, access: stats.access,
-      errors: stats.errors, testCount: stats.testIds.size
-    })
-
-    // Отправляем отчёт после последнего сообщения вебинара (ДОСТУП 15м)
-    if (broadcastAccess && text.startsWith('Через 15 минут') && stats.testIds.size > 0) {
-      const report =
-        `📊 Отчёт рассылки:\n` +
-        `БАЗА: ${stats.base} сообщений отправлено\n` +
-        `ПРАКТИКА: ${stats.practice} сообщений отправлено\n` +
-        `ПРАКТИКА+, сопровождение: ${stats.access} сообщений отправлено\n` +
-        `Ошибок: ${stats.errors}`
-      for (const tgId of stats.testIds) {
-        try {
-          await bot.telegram.sendMessage(tgId, report)
-          console.log(`[Scheduler ${SCHEDULER_ID}] ТЕСТ report sent to ${tgId}`)
-        } catch (e) {
-          console.error(`[Scheduler ${SCHEDULER_ID}] Failed to send ТЕСТ report to ${tgId}:`, e.message)
-        }
-      }
-      webinarStats.delete(weekKey)
     }
   }
 
