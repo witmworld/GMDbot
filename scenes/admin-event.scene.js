@@ -21,12 +21,9 @@ function parseWebinarDate(text) {
   return m.isValid() ? m : null
 }
 
-// Все участники с telegram_id (КЛУБ = все тарифы кроме ТЕСТ — ТЕСТ не дублировать)
+// Все участники с telegram_id (КЛУБ = все тарифы включая ТЕСТ)
 function filterTargets(members) {
-  return members.filter(m => {
-    if (!m.fields['telegram_id']) return false
-    return m.fields['Тариф'] !== 'ТЕСТ'
-  })
+  return members.filter(m => !!m.fields['telegram_id'])
 }
 
 export const adminEventScene = new Scenes.BaseScene('ADMIN_EVENT')

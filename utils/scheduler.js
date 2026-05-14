@@ -80,7 +80,7 @@ async function sendBroadcast(bot, msg) {
   const broadcastAccess   = tariff === 'ДОСТУП'
 
   if (broadcastAll) {
-    console.log(`[Scheduler ${SCHEDULER_ID}] Broadcasting to ALL members (excl. ТЕСТ)`)
+    console.log(`[Scheduler ${SCHEDULER_ID}] Broadcasting to ALL members (incl. ТЕСТ)`)
   } else if (broadcastPremium) {
     console.log(`[Scheduler ${SCHEDULER_ID}] Broadcasting to ПРЕМИУМ (all except БАЗА, ТЕСТ)`)
   } else if (broadcastBase) {
@@ -98,8 +98,7 @@ async function sendBroadcast(bot, msg) {
     const userTariff = m.fields['Тариф']
     if (!tgId) return false
 
-    // ТЕСТ не входит в общие рассылки — получает только явные вебинарные сообщения
-    if (broadcastAll)     return userTariff !== 'ТЕСТ'
+    if (broadcastAll)     return true
     if (broadcastPremium) return userTariff !== 'БАЗА' && userTariff !== 'ТЕСТ'
 
     // ТЕСТ получает все три вебинарных рассылки (БАЗА, ПРАКТИКА, ДОСТУП)
@@ -128,9 +127,10 @@ async function sendBroadcast(bot, msg) {
   // 24h webinar messages — create individual payment link per member
   const is24hWebinar = text.startsWith('Привет! 👋 Завтра') && (broadcastBase || broadcastPractice)
 
-  let sent        = 0   // все включая ТЕСТ (для лога)
-  let sentNonTest = 0   // без ТЕСТ (для отчёта)
+  let sent          = 0   // все включая ТЕСТ (для лога)
+  let sentNonTest   = 0   // без ТЕСТ (для отчёта)
   let errorsNonTest = 0
+  const sentByTariff = {}  // { 'БАЗА': N, 'ПРАКТИКА': N, ... } без ТЕСТ
 
   for (const member of targets) {
     const tgId   = String(member.fields['telegram_id'])
@@ -158,7 +158,11 @@ async function sendBroadcast(bot, msg) {
         link_preview_options: { is_disabled: true }
       })
       sent++
-      if (!isTEST) sentNonTest++
+      if (!isTEST) {
+        sentNonTest++
+        const t = member.fields['Тариф'] || '?'
+        sentByTariff[t] = (sentByTariff[t] || 0) + 1
+      }
     } catch (e) {
       console.error(`[Scheduler ${SCHEDULER_ID}] sendMessage failed for ${tgId}:`, e.message)
       if (!isTEST) errorsNonTest++
@@ -196,6 +200,29 @@ async function sendBroadcast(bot, msg) {
       }
     } catch (e) {
       console.error(`[Scheduler ${SCHEDULER_ID}] Failed to deactivate webinar records:`, e.message)
+    }
+  }
+
+  // Отчёт для ТЕСТ после рассылки КЛУБ/ВСЕ (мероприятия)
+  if (broadcastAll) {
+    const testIds = targets
+      .filter(m => m.fields['Тариф'] === 'ТЕСТ')
+      .map(m => String(m.fields['telegram_id']))
+    if (testIds.length > 0) {
+      const lines = Object.entries(sentByTariff)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([t, n]) => `${t}: ${n}`)
+        .join('\n')
+      const report =
+        `📊 Отчёт рассылки (все тарифы):\n${lines}\nОшибок: ${errorsNonTest}`
+      for (const tgId of testIds) {
+        try {
+          await bot.telegram.sendMessage(tgId, report)
+          console.log(`[Scheduler ${SCHEDULER_ID}] КЛУБ report sent to ТЕСТ ${tgId}`)
+        } catch (e) {
+          console.error(`[Scheduler ${SCHEDULER_ID}] Failed to send КЛУБ report to ${tgId}:`, e.message)
+        }
+      }
     }
   }
 
