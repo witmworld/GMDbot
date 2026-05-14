@@ -9,6 +9,8 @@ const MONTHS = {
   'июля': 7, 'августа': 8, 'сентября': 9, 'октября': 10, 'ноября': 11, 'декабря': 12,
 }
 
+const escapeHtml = (text) => text?.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') || ''
+
 function parseWebinarDate(text) {
   const match = text.trim().match(/^(\d{1,2})\s+(\S+)\s+(\d{1,2}):(\d{2})$/)
   if (!match) return null
@@ -43,8 +45,8 @@ adminEventScene.enter(async (ctx) => {
   ctx.session.eventData = {}
 
   await ctx.reply(
-    '📅 *Создание мероприятия*\n\nШаг 1/5: Введите дату и время:\n_Например: 4 мая 19:00_',
-    { parse_mode: 'Markdown', ...cancelKeyboard }
+    '📅 <b>Создание мероприятия</b>\n\nШаг 1/5: Введите дату и время:\n<i>Например: 4 мая 19:00</i>',
+    { parse_mode: 'HTML', ...cancelKeyboard }
   )
 })
 
@@ -55,14 +57,14 @@ adminEventScene.on('text', async (ctx) => {
   if (step === 1) {
     const m = parseWebinarDate(ctx.message.text)
     if (!m) {
-      return ctx.reply('❌ Не могу распознать дату. Введите в формате _"4 мая 19:00"_:', { parse_mode: 'Markdown' })
+      return ctx.reply('❌ Не могу распознать дату. Введите в формате <i>"4 мая 19:00"</i>:', { parse_mode: 'HTML' })
     }
     data.dateText = ctx.message.text.trim()
     data.dateIso  = m.toISOString()
     ctx.session.eventStep = 2
     return ctx.reply(
-      '📝 *Создание мероприятия*\n\nШаг 2/5: Введите заголовок мероприятия:',
-      { parse_mode: 'Markdown', ...cancelKeyboard }
+      '📝 <b>Создание мероприятия</b>\n\nШаг 2/5: Введите заголовок мероприятия:',
+      { parse_mode: 'HTML', ...cancelKeyboard }
     )
   }
 
@@ -70,8 +72,8 @@ adminEventScene.on('text', async (ctx) => {
     data.title = ctx.message.text.trim()
     ctx.session.eventStep = 3
     return ctx.reply(
-      '🎤 *Создание мероприятия*\n\nШаг 3/5: Введите имя ведущего:',
-      { parse_mode: 'Markdown', ...cancelKeyboard }
+      '🎤 <b>Создание мероприятия</b>\n\nШаг 3/5: Введите имя ведущего:',
+      { parse_mode: 'HTML', ...cancelKeyboard }
     )
   }
 
@@ -79,8 +81,8 @@ adminEventScene.on('text', async (ctx) => {
     data.speaker = ctx.message.text.trim()
     ctx.session.eventStep = 4
     return ctx.reply(
-      '📋 *Создание мероприятия*\n\nШаг 4/5: Введите описание (что узнают участники):',
-      { parse_mode: 'Markdown', ...cancelKeyboard }
+      '📋 <b>Создание мероприятия</b>\n\nШаг 4/5: Введите описание (что узнают участники):',
+      { parse_mode: 'HTML', ...cancelKeyboard }
     )
   }
 
@@ -88,8 +90,8 @@ adminEventScene.on('text', async (ctx) => {
     data.description = ctx.message.text.trim()
     ctx.session.eventStep = 5
     return ctx.reply(
-      '🔗 *Создание мероприятия*\n\nШаг 5/5: Введите ссылку на Zoom:\n_Отправьте `-` если ссылки пока нет_',
-      { parse_mode: 'Markdown', ...cancelKeyboard }
+      '🔗 <b>Создание мероприятия</b>\n\nШаг 5/5: Введите ссылку на Zoom:\n<i>Отправьте `-` если ссылки пока нет</i>',
+      { parse_mode: 'HTML', ...cancelKeyboard }
     )
   }
 
@@ -103,15 +105,15 @@ adminEventScene.on('text', async (ctx) => {
 async function showPreview(ctx) {
   const d = ctx.session.eventData
   await ctx.reply(
-    `📋 *Проверьте данные мероприятия:*\n\n` +
-    `📅 Дата: ${d.dateText}\n` +
-    `📝 Заголовок: ${d.title}\n` +
-    `🎤 Ведущий: ${d.speaker}\n` +
-    `📋 Описание: ${d.description}\n` +
-    `🔗 Zoom: ${d.zoomUrl || 'не указан'}\n\n` +
+    `📋 <b>Проверьте данные мероприятия:</b>\n\n` +
+    `📅 Дата: ${escapeHtml(d.dateText)}\n` +
+    `📝 Заголовок: ${escapeHtml(d.title)}\n` +
+    `🎤 Ведущий: ${escapeHtml(d.speaker)}\n` +
+    `📋 Описание: ${escapeHtml(d.description)}\n` +
+    `🔗 Zoom: ${escapeHtml(d.zoomUrl) || 'не указан'}\n\n` +
     `📣 Получат все участники (КЛУБ)`,
     {
-      parse_mode: 'Markdown',
+      parse_mode: 'HTML',
       ...Markup.inlineKeyboard([
         [Markup.button.callback('✅ Создать', 'event:confirm')],
         [Markup.button.callback('❌ Отмена',  'event:cancel')],
@@ -222,13 +224,13 @@ adminEventScene.action('event:confirm', async (ctx) => {
     }
 
     await ctx.reply(
-      `✅ *Мероприятие создано!*\n\n` +
+      `✅ <b>Мероприятие создано!</b>\n\n` +
       `📋 Записей: 3 (все тарифы)\n\n` +
       `⏰ Расписание:\n` +
       `• ${t24h.tz('Asia/Jerusalem').format('DD.MM в HH:mm')} — за 24ч\n` +
       `• ${t1h.tz('Asia/Jerusalem').format('DD.MM в HH:mm')} — за 1ч\n` +
       `• ${t15m.tz('Asia/Jerusalem').format('DD.MM в HH:mm')} — за 15мин`,
-      { parse_mode: 'Markdown' }
+      { parse_mode: 'HTML' }
     )
   } catch (err) {
     console.error('[Event] Create error:', err)

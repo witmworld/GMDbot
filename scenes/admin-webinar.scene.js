@@ -8,6 +8,8 @@ import { hasActiveWebinarAccess } from '../utils/scheduler.js'
 const DEFAULT_PRICE_BASE     = 50
 const DEFAULT_PRICE_PRACTICE = 30
 
+const escapeHtml = (text) => text?.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') || ''
+
 const MONTHS = {
   'января': 1, 'февраля': 2, 'марта': 3, 'апреля': 4, 'мая': 5, 'июня': 6,
   'июля': 7, 'августа': 8, 'сентября': 9, 'октября': 10, 'ноября': 11, 'декабря': 12,
@@ -75,8 +77,8 @@ adminWebinarScene.enter(async (ctx) => {
     ctx.session.webinarStep    = 'zoom_only_url'
     ctx.session.webinarZoomData = {}
     return ctx.reply(
-      '🔗 *Добавить Zoom URL*\n\nШаг 1/2: Введите ссылку на Zoom:',
-      { parse_mode: 'Markdown', ...cancelKeyboard }
+      '🔗 <b>Добавить Zoom URL</b>\n\nШаг 1/2: Введите ссылку на Zoom:',
+      { parse_mode: 'HTML', ...cancelKeyboard }
     )
   }
 
@@ -88,8 +90,8 @@ adminWebinarScene.enter(async (ctx) => {
   }
 
   await ctx.reply(
-    '📅 *Создание вебинара*\n\nШаг 1/6: Введите дату и время вебинара:\n_Например: 4 мая 19:00_',
-    { parse_mode: 'Markdown', ...cancelKeyboard }
+    '📅 <b>Создание вебинара</b>\n\nШаг 1/6: Введите дату и время вебинара:\n<i>Например: 4 мая 19:00</i>',
+    { parse_mode: 'HTML', ...cancelKeyboard }
   )
 })
 
@@ -104,8 +106,8 @@ adminWebinarScene.on('text', async (ctx) => {
     ctx.session.webinarZoomData.url = ctx.message.text.trim()
     ctx.session.webinarStep = 'zoom_only_date'
     return ctx.reply(
-      '📅 *Шаг 2/2: На какую дату эта ссылка?*\n_Например: 4 мая_',
-      { parse_mode: 'Markdown', ...cancelKeyboard }
+      '📅 <b>Шаг 2/2: На какую дату эта ссылка?</b>\n<i>Например: 4 мая</i>',
+      { parse_mode: 'HTML', ...cancelKeyboard }
     )
   }
 
@@ -116,7 +118,7 @@ adminWebinarScene.on('text', async (ctx) => {
     ctx.session.webinarZoomOnly = false
 
     if (!parsed) {
-      return ctx.reply('❌ Не могу распознать дату. Введите в формате _"4 мая"_:', { parse_mode: 'Markdown' })
+      return ctx.reply('❌ Не могу распознать дату. Введите в формате <i>"4 мая"</i>:', { parse_mode: 'HTML' })
     }
 
     await ctx.reply('⏳ Обновляю записи...')
@@ -181,14 +183,14 @@ adminWebinarScene.on('text', async (ctx) => {
   if (step === 1) {
     const m = parseWebinarDate(ctx.message.text)
     if (!m) {
-      return ctx.reply('❌ Не могу распознать дату. Введите в формате _"4 мая 19:00"_:', { parse_mode: 'Markdown' })
+      return ctx.reply('❌ Не могу распознать дату. Введите в формате <i>"4 мая 19:00"</i>:', { parse_mode: 'HTML' })
     }
     data.dateText = ctx.message.text.trim()
     data.dateIso  = m.toISOString()
     ctx.session.webinarStep = 2
     return ctx.reply(
-      '📝 *Создание вебинара*\n\nШаг 2/6: Введите заголовок вебинара:',
-      { parse_mode: 'Markdown', ...cancelKeyboard }
+      '📝 <b>Создание вебинара</b>\n\nШаг 2/6: Введите заголовок вебинара:',
+      { parse_mode: 'HTML', ...cancelKeyboard }
     )
   }
 
@@ -197,8 +199,8 @@ adminWebinarScene.on('text', async (ctx) => {
     data.title = ctx.message.text.trim()
     ctx.session.webinarStep = 3
     return ctx.reply(
-      '🎤 *Создание вебинара*\n\nШаг 3/6: Введите имя ведущего:',
-      { parse_mode: 'Markdown', ...cancelKeyboard }
+      '🎤 <b>Создание вебинара</b>\n\nШаг 3/6: Введите имя ведущего:',
+      { parse_mode: 'HTML', ...cancelKeyboard }
     )
   }
 
@@ -207,8 +209,8 @@ adminWebinarScene.on('text', async (ctx) => {
     data.speaker = ctx.message.text.trim()
     ctx.session.webinarStep = 4
     return ctx.reply(
-      '📋 *Создание вебинара*\n\nШаг 4/6: Введите тему / описание (что узнают участники):',
-      { parse_mode: 'Markdown', ...cancelKeyboard }
+      '📋 <b>Создание вебинара</b>\n\nШаг 4/6: Введите тему / описание (что узнают участники):',
+      { parse_mode: 'HTML', ...cancelKeyboard }
     )
   }
 
@@ -217,8 +219,8 @@ adminWebinarScene.on('text', async (ctx) => {
     data.description = ctx.message.text.trim()
     ctx.session.webinarStep = 5
     return ctx.reply(
-      '🔗 *Создание вебинара*\n\nШаг 5/6: Введите ссылку на Zoom:\n_Отправьте `-` если ссылки пока нет_',
-      { parse_mode: 'Markdown', ...cancelKeyboard }
+      '🔗 <b>Создание вебинара</b>\n\nШаг 5/6: Введите ссылку на Zoom:\n<i>Отправьте `-` если ссылки пока нет</i>',
+      { parse_mode: 'HTML', ...cancelKeyboard }
     )
   }
 
@@ -237,8 +239,8 @@ adminWebinarScene.on('text', async (ctx) => {
     const practice = parseFloat(parts[1])
     if (isNaN(base) || isNaN(practice) || base <= 0 || practice <= 0) {
       return ctx.reply(
-        '❌ Введите две суммы через пробел, например: `50 30`',
-        { parse_mode: 'Markdown' }
+        '❌ Введите две суммы через пробел, например: <code>50 30</code>',
+        { parse_mode: 'HTML' }
       )
     }
     data.priceBase     = base
@@ -253,12 +255,12 @@ adminWebinarScene.on('text', async (ctx) => {
 async function showPriceConfirm(ctx) {
   const data = ctx.session.webinarData
   await ctx.reply(
-    `💰 *Шаг 6/6 — Суммы доплат:*\n\n` +
+    `💰 <b>Шаг 6/6 — Суммы доплат:</b>\n\n` +
     `• Доступ для БАЗА: ₪${data.priceBase}\n` +
     `• ПРАКТИКА (запись): ₪${data.pricePractice}\n\n` +
     `Подтвердить или ввести новые суммы?`,
     {
-      parse_mode: 'Markdown',
+      parse_mode: 'HTML',
       ...Markup.inlineKeyboard([
         [Markup.button.callback('✅ Подтвердить', 'webinar:prices_ok')],
         [Markup.button.callback('✏️ Изменить', 'webinar:prices_edit')],
@@ -271,16 +273,16 @@ async function showPriceConfirm(ctx) {
 async function showPreview(ctx) {
   const d = ctx.session.webinarData
   await ctx.reply(
-    `📋 *Проверьте данные вебинара:*\n\n` +
-    `📅 Дата: ${d.dateText}\n` +
-    `📝 Заголовок: ${d.title}\n` +
-    `🎤 Ведущий: ${d.speaker}\n` +
-    `📋 Описание: ${d.description}\n` +
-    `🔗 Zoom: ${d.zoomUrl || 'не указан'}\n` +
+    `📋 <b>Проверьте данные вебинара:</b>\n\n` +
+    `📅 Дата: ${escapeHtml(d.dateText)}\n` +
+    `📝 Заголовок: ${escapeHtml(d.title)}\n` +
+    `🎤 Ведущий: ${escapeHtml(d.speaker)}\n` +
+    `📋 Описание: ${escapeHtml(d.description)}\n` +
+    `🔗 Zoom: ${escapeHtml(d.zoomUrl) || 'не указан'}\n` +
     `💰 Доступ БАЗА: ₪${d.priceBase}\n` +
     `💰 Запись ПРАКТИКА: ₪${d.pricePractice}`,
     {
-      parse_mode: 'Markdown',
+      parse_mode: 'HTML',
       ...Markup.inlineKeyboard([
         [Markup.button.callback('✅ Создать', 'webinar:confirm')],
         [Markup.button.callback('❌ Отмена',  'webinar:cancel')],
@@ -303,8 +305,8 @@ adminWebinarScene.action('webinar:prices_edit', async (ctx) => {
   const d = ctx.session.webinarData
   await ctx.reply(
     `✏️ Введите новые суммы через пробел:\n` +
-    `_Сначала БАЗА, потом ПРАКТИКА. Например: \`${d.priceBase} ${d.pricePractice}\`_`,
-    { parse_mode: 'Markdown', ...cancelKeyboard }
+    `<i>Сначала БАЗА, потом ПРАКТИКА. Например: <code>${d.priceBase} ${d.pricePractice}</code></i>`,
+    { parse_mode: 'HTML', ...cancelKeyboard }
   )
 })
 
@@ -462,15 +464,15 @@ adminWebinarScene.action('webinar:confirm', async (ctx) => {
     }
 
     await ctx.reply(
-      `✅ *Вебинар создан!*\n\n` +
+      `✅ <b>Вебинар создан!</b>\n\n` +
       `📋 Записей в MESSAGE table: 7\n\n` +
       `⏰ Расписание рассылок:\n` +
       `• ${t24h.tz('Asia/Jerusalem').format('DD.MM в HH:mm')} — за 24ч (БАЗА, ПРАКТИКА, ДОСТУП)\n` +
       `• ${t1h.tz('Asia/Jerusalem').format('DD.MM в HH:mm')} — за 1ч (ПРАКТИКА, ДОСТУП)\n` +
       `• ${t15m.tz('Asia/Jerusalem').format('DD.MM в HH:mm')} — за 15мин (ПРАКТИКА, ДОСТУП)\n\n` +
-      `🔗 Ссылка БАЗА: ${linkBase}\n` +
-      `📹 Ссылка ПРАКТИКА: ${linkPractice}`,
-      { parse_mode: 'Markdown' }
+      `🔗 Ссылка БАЗА: ${escapeHtml(linkBase)}\n` +
+      `📹 Ссылка ПРАКТИКА: ${escapeHtml(linkPractice)}`,
+      { parse_mode: 'HTML' }
     )
   } catch (err) {
     console.error('[Webinar] Create error:', err)
