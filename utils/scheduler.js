@@ -264,7 +264,7 @@ export async function checkScheduledMessages(bot) {
     }
   }
 
-  console.log(`[Scheduler ${SCHEDULER_ID}] Overdue messages (send now):`, overdueMessages.length)
+  console.log(`[Scheduler ${SCHEDULER_ID}] Overdue messages (skip + clearSendFlag):`, overdueMessages.length)
   console.log(`[Scheduler ${SCHEDULER_ID}] Future messages (schedule setTimeout):`, futureMessages.length)
 
   futureMessages.forEach(({ msg, sendMoment }) => {
@@ -273,8 +273,14 @@ export async function checkScheduledMessages(bot) {
   })
 
   for (const msg of overdueMessages) {
-    console.log(`[Scheduler ${SCHEDULER_ID}] Sending immediately: ID ${msg.id}`)
-    await sendBroadcast(bot, msg)
+    const t = msg.fields['Тариф'] || 'none'
+    const ts = msg.fields['Время рассылки'] || 'no time'
+    console.log(`[Scheduler ${SCHEDULER_ID}] Skipping overdue message: ${t} ${ts}`)
+    try {
+      await clearSendFlag(msg.id)
+    } catch (e) {
+      console.error(`[Scheduler ${SCHEDULER_ID}] clearSendFlag failed for overdue ${msg.id}:`, e.message)
+    }
   }
 
   for (const { msg, sendMoment } of futureMessages) {
@@ -285,27 +291,9 @@ export async function checkScheduledMessages(bot) {
   }
 }
 
-function scheduleDailyAt18(bot) {
-  const now    = moment.tz('Asia/Jerusalem')
-  const next18 = moment.tz('Asia/Jerusalem').hour(18).minute(0).second(0).millisecond(0)
-  if (!next18.isAfter(now)) next18.add(1, 'day')
-
-  const delay   = next18.valueOf() - now.valueOf()
-  const minutes = Math.round(delay / 60_000)
-  console.log(`[Scheduler ${SCHEDULER_ID}] Current time (Jerusalem): ${now.format('HH:mm')}`)
-  console.log(`[Scheduler ${SCHEDULER_ID}] Next daily check at 18:00 — in ${minutes} min`)
-
-  setTimeout(() => {
-    checkScheduledMessages(bot)
-    scheduleDailyAt18(bot)
-  }, delay)
-}
-
 export function startScheduler(bot) {
-  console.log(`[Scheduler ${SCHEDULER_ID}] Started — daily check at 18:00`)
-  // Подхватить pending таймауты после рестарта Railway
+  console.log(`[Scheduler ${SCHEDULER_ID}] Started — running scheduleCheck once on startup`)
   checkScheduledMessages(bot)
-  scheduleDailyAt18(bot)
 }
 
 // Алиас для явного вызова при рестарте
