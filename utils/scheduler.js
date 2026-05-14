@@ -7,6 +7,15 @@ console.log('[Scheduler] Instance ID:', SCHEDULER_ID)
 
 const scheduledTimeouts = new Map()
 
+// Накапливает статистику отправок вебинара для отчёта участникам ТЕСТ.
+// Ключ: ISO-неделя (например "2026-W20"), значение: { base, practice, access, errors, testIds }
+const webinarStats = new Map()
+
+function getWeekKey(sendTimeStr) {
+  if (!sendTimeStr) return 'unknown'
+  return moment.tz(sendTimeStr, 'Asia/Jerusalem').startOf('isoWeek').format('GGGG-[W]WW')
+}
+
 // Возвращает true если участник оплатил вебинар не более 30 дней назад.
 // Поле «Вебинар» может быть ISO строкой или dd/mm/yyyy.
 export function hasActiveWebinarAccess(member) {
@@ -54,6 +63,7 @@ async function sendBroadcast(bot, msg) {
   console.log(`[Scheduler] All members count:`, allMembers.length)
   console.log(`[Scheduler] БАЗА members:`, allMembers.filter(m => m.fields['Тариф'] === 'БАЗА').length)
   console.log(`[Scheduler] ПРАКТИКА members:`, allMembers.filter(m => m.fields['Тариф'] === 'ПРАКТИКА').length)
+  console.log(`[Scheduler] ТЕСТ members:`, allMembers.filter(m => m.fields['Тариф'] === 'ТЕСТ').length)
   console.log(`[Scheduler] БАЗА with telegram_id:`, allMembers.filter(m => m.fields['Тариф'] === 'БАЗА' && m.fields['telegram_id']).length)
   console.log(`[Scheduler] БАЗА sample (first 3):`, JSON.stringify(
     allMembers.filter(m => m.fields['Тариф'] === 'БАЗА').slice(0, 3).map(m => ({
@@ -70,15 +80,15 @@ async function sendBroadcast(bot, msg) {
   const broadcastAccess   = tariff === 'ДОСТУП'
 
   if (broadcastAll) {
-    console.log(`[Scheduler ${SCHEDULER_ID}] Broadcasting to ALL members`)
+    console.log(`[Scheduler ${SCHEDULER_ID}] Broadcasting to ALL members (excl. ТЕСТ)`)
   } else if (broadcastPremium) {
-    console.log(`[Scheduler ${SCHEDULER_ID}] Broadcasting to ПРЕМИУМ (all except БАЗА)`)
+    console.log(`[Scheduler ${SCHEDULER_ID}] Broadcasting to ПРЕМИУМ (all except БАЗА, ТЕСТ)`)
   } else if (broadcastBase) {
-    console.log(`[Scheduler ${SCHEDULER_ID}] Broadcasting to БАЗА without active webinar payment`)
+    console.log(`[Scheduler ${SCHEDULER_ID}] Broadcasting to БАЗА without active webinar payment + ТЕСТ`)
   } else if (broadcastPractice) {
-    console.log(`[Scheduler ${SCHEDULER_ID}] Broadcasting to ПРАКТИКА without active webinar payment`)
+    console.log(`[Scheduler ${SCHEDULER_ID}] Broadcasting to ПРАКТИКА without active webinar payment + ТЕСТ`)
   } else if (broadcastAccess) {
-    console.log(`[Scheduler ${SCHEDULER_ID}] Broadcasting to ДОСТУП (ПРАКТИКА+, СОПРОВОЖДЕНИЕ, paid БАЗА/ПРАКТИКА)`)
+    console.log(`[Scheduler ${SCHEDULER_ID}] Broadcasting to ДОСТУП (ПРАКТИКА+, СОПРОВОЖДЕНИЕ, paid БАЗА/ПРАКТИКА) + ТЕСТ`)
   } else {
     console.log(`[Scheduler ${SCHEDULER_ID}] Broadcasting to tariff: ${tariff}`)
   }
@@ -88,24 +98,26 @@ async function sendBroadcast(bot, msg) {
     const userTariff = m.fields['Тариф']
     if (!tgId) return false
 
-    if (broadcastAll)     return true
-    if (broadcastPremium) return userTariff !== 'БАЗА'
+    // ТЕСТ не входит в общие рассылки — получает только явные вебинарные сообщения
+    if (broadcastAll)     return userTariff !== 'ТЕСТ'
+    if (broadcastPremium) return userTariff !== 'БАЗА' && userTariff !== 'ТЕСТ'
 
-    // БАЗА: только те кто НЕ оплатил или оплата просрочена
+    // ТЕСТ получает все три вебинарных рассылки (БАЗА, ПРАКТИКА, ДОСТУП)
     if (broadcastBase) {
-      return userTariff === 'БАЗА' && !hasActiveWebinarAccess(m)
+      return (userTariff === 'БАЗА' && !hasActiveWebinarAccess(m)) || userTariff === 'ТЕСТ'
     }
 
-    // ПРАКТИКА: только те кто НЕ оплатил или оплата просрочена
     if (broadcastPractice) {
-      return userTariff === 'ПРАКТИКА' && !hasActiveWebinarAccess(m)
+      return (userTariff === 'ПРАКТИКА' && !hasActiveWebinarAccess(m)) || userTariff === 'ТЕСТ'
     }
 
     // ДОСТУП: ПРАКТИКА+ и СОПРОВОЖДЕНИЕ всегда,
-    //         БАЗА и ПРАКТИКА — только с активной оплатой (≤30 дней)
+    //         БАЗА и ПРАКТИКА — только с активной оплатой (≤30 дней),
+    //         ТЕСТ — всегда
     if (broadcastAccess) {
-      if (userTariff === 'ПРАКТИКА+')     return true
-      if (userTariff === 'СОПРОВОЖДЕНИЕ') return true
+      if (userTariff === 'ТЕСТ')           return true
+      if (userTariff === 'ПРАКТИКА+')      return true
+      if (userTariff === 'СОПРОВОЖДЕНИЕ')  return true
       if ((userTariff === 'БАЗА' || userTariff === 'ПРАКТИКА') && hasActiveWebinarAccess(m)) return true
       return false
     }
@@ -116,9 +128,13 @@ async function sendBroadcast(bot, msg) {
   // 24h webinar messages — create individual payment link per member
   const is24hWebinar = text.startsWith('Привет! 👋 Завтра') && (broadcastBase || broadcastPractice)
 
-  let sent = 0
+  let sent        = 0   // все включая ТЕСТ (для лога)
+  let sentNonTest = 0   // без ТЕСТ (для отчёта)
+  let errorsNonTest = 0
+
   for (const member of targets) {
-    const tgId = String(member.fields['telegram_id'])
+    const tgId   = String(member.fields['telegram_id'])
+    const isTEST = member.fields['Тариф'] === 'ТЕСТ'
     let messageText = text
 
     if (is24hWebinar) {
@@ -142,12 +158,14 @@ async function sendBroadcast(bot, msg) {
         link_preview_options: { is_disabled: true }
       })
       sent++
+      if (!isTEST) sentNonTest++
     } catch (e) {
       console.error(`[Scheduler ${SCHEDULER_ID}] sendMessage failed for ${tgId}:`, e.message)
+      if (!isTEST) errorsNonTest++
     }
   }
 
-  console.log(`[Scheduler ${SCHEDULER_ID}] Sent to ${sent} recipients`)
+  console.log(`[Scheduler ${SCHEDULER_ID}] Sent to ${sent} recipients (${sentNonTest} non-TEST)`)
 
   // 24h webinar broadcast → mark as active so scheduler won't re-send after restart
   if (tariff === 'БАЗА' || tariff === 'ПРАКТИКА') {
@@ -178,6 +196,47 @@ async function sendBroadcast(bot, msg) {
       }
     } catch (e) {
       console.error(`[Scheduler ${SCHEDULER_ID}] Failed to deactivate webinar records:`, e.message)
+    }
+  }
+
+  // Накапливаем статистику для отчёта ТЕСТ-участникам
+  const isWebinarBroadcast = broadcastBase || broadcastPractice || broadcastAccess
+  if (isWebinarBroadcast) {
+    const weekKey = getWeekKey(msg.fields['Время рассылки'])
+    const stats = webinarStats.get(weekKey) || { base: 0, practice: 0, access: 0, errors: 0, testIds: new Set() }
+
+    if (broadcastBase)     stats.base     += sentNonTest
+    if (broadcastPractice) stats.practice += sentNonTest
+    if (broadcastAccess)   stats.access   += sentNonTest
+    stats.errors += errorsNonTest
+
+    targets
+      .filter(m => m.fields['Тариф'] === 'ТЕСТ')
+      .forEach(m => stats.testIds.add(String(m.fields['telegram_id'])))
+
+    webinarStats.set(weekKey, stats)
+    console.log(`[Scheduler ${SCHEDULER_ID}] ТЕСТ stats [${weekKey}]:`, {
+      base: stats.base, practice: stats.practice, access: stats.access,
+      errors: stats.errors, testCount: stats.testIds.size
+    })
+
+    // Отправляем отчёт после последнего сообщения вебинара (ДОСТУП 15м)
+    if (broadcastAccess && text.startsWith('Через 15 минут') && stats.testIds.size > 0) {
+      const report =
+        `📊 Отчёт рассылки:\n` +
+        `БАЗА: ${stats.base} сообщений отправлено\n` +
+        `ПРАКТИКА: ${stats.practice} сообщений отправлено\n` +
+        `ПРАКТИКА+, сопровождение: ${stats.access} сообщений отправлено\n` +
+        `Ошибок: ${stats.errors}`
+      for (const tgId of stats.testIds) {
+        try {
+          await bot.telegram.sendMessage(tgId, report)
+          console.log(`[Scheduler ${SCHEDULER_ID}] ТЕСТ report sent to ${tgId}`)
+        } catch (e) {
+          console.error(`[Scheduler ${SCHEDULER_ID}] Failed to send ТЕСТ report to ${tgId}:`, e.message)
+        }
+      }
+      webinarStats.delete(weekKey)
     }
   }
 
