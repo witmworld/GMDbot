@@ -21,6 +21,9 @@ import { adminWebinarScene } from './scenes/admin-webinar.scene.js'
 import { adminEventScene } from './scenes/admin-event.scene.js'
 import { menuScene } from './scenes/menu.scene.js'
 import { subscribeScene } from './scenes/subscribe.scene.js'
+import { activityReportScene } from './scenes/activity-report.scene.js'
+import { registerActivityTracker } from './utils/activityTracker.js'
+import { startActivityScheduler } from './utils/activityScheduler.js'
 import { scanGroupMembers } from './utils/group-scanner.js'
 import { startScheduler, hasActiveWebinarAccess, forceSendPending } from './utils/scheduler.js'
 import { getTariffs, getClubMembers, getClubMember, createClubMember, getClubMemberRecord, setMemberAdminFlag, updateClubMemberFields, getMessages } from './integrations/fillout.js'
@@ -197,9 +200,14 @@ try {
     adminWebinarScene,
     adminEventScene,
     menuScene,
-    subscribeScene
+    subscribeScene,
+    activityReportScene
   ])
   console.log('Scenes registered:', stage.scenes.size)
+
+  // Трекинг активности в группе клуба — ДО приватного гейта ниже,
+  // т.к. групповые апдейты дальше по цепочке не проходят.
+  registerActivityTracker(bot)
 
   bot.use(session({ getSessionKey: (ctx) => String(ctx.from?.id) }))
 
@@ -306,6 +314,8 @@ try {
     console.log('[ADMIN_MENU] Command received from:', ctx.from.id)
     return ctx.scene.enter('ADMIN_MENU')
   })
+  // Отчёты по активности и подпискам (только в личке, проверка админа внутри сцены)
+  bot.command('activity', (ctx) => ctx.scene.enter('ACTIVITY_REPORT'))
   bot.command('admin_calendar', (ctx) => {
     console.log('[ADMIN_CAL] ===== COMMAND RECEIVED =====')
     console.log('[ADMIN_CAL] From user:', ctx.from.id)
@@ -494,8 +504,26 @@ try {
       startScheduler(bot)
       console.log('[Init] Scheduler started (includes immediate pending check)')
 
+      console.log('[Init] Starting activity scheduler (tg_club)...')
+      startActivityScheduler({ runOnStart: false })
+      console.log('[Init] Activity scheduler started')
+
       console.log('[Webhook] Setting webhook to:', WEBHOOK_DOMAIN + webhookPath)
-      await bot.telegram.setWebhook(WEBHOOK_DOMAIN + webhookPath)
+      // allowed_updates: к стандартным типам добавляем 'message_reaction',
+      // иначе Telegram не присылает реакции (нужны для трекинга активности).
+      await bot.telegram.setWebhook(WEBHOOK_DOMAIN + webhookPath, {
+        allowed_updates: [
+          'message',
+          'edited_message',
+          'channel_post',
+          'edited_channel_post',
+          'callback_query',
+          'inline_query',
+          'chat_member',
+          'my_chat_member',
+          'message_reaction',
+        ],
+      })
       console.log('🤖 Где мои деньги · Клуб — бот запущен (webhook mode)')
 
       try {
