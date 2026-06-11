@@ -173,6 +173,7 @@ adminEventScene.action('event:confirm', async (ctx) => {
         zoomUrl:  rec.zoomUrl || null,
         send:     true,
       })
+      console.log('[Event] createMessage response:', JSON.stringify(created))
       const recordId = created?.record?.id
       const label    = moment.tz(rec.sendTime, 'Asia/Jerusalem').format('DD.MM HH:mm')
       console.log(`[Event] Created: КЛУБ @ ${label} | id: ${recordId}`)
