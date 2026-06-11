@@ -403,7 +403,7 @@ adminWebinarScene.action('webinar:confirm', async (ctx) => {
         zoomUrl:  rec.zoomUrl || null,
         send:     true,
       })
-      const recordId = created?.record?.id
+      const recordId = created?.id
       const label    = moment.tz(rec.sendTime, 'Asia/Jerusalem').format('DD.MM HH:mm')
       console.log(`[Webinar] Created: ${rec.tariff} @ ${label} | id: ${recordId}`)
 
