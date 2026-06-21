@@ -1,7 +1,7 @@
 import { Scenes, Markup } from 'telegraf'
 import moment from 'moment-timezone'
 import { isAdmin } from '../utils/adminCheck.js'
-import { createMessage, updateMessage, getMessages, getClubMembers, clearSendFlag } from '../integrations/fillout.js'
+import { createMessage, updateMessage, getMessages, getMessageById, getClubMembers, clearSendFlag } from '../integrations/fillout.js'
 import { hasActiveWebinarAccess } from '../utils/scheduler.js'
 
 const MONTHS = {
@@ -182,12 +182,19 @@ adminEventScene.action('event:confirm', async (ctx) => {
       if (delay > 0 && recordId) {
         setTimeout(async () => {
           try {
+            const fresh = await getMessageById(recordId)
+            if (!fresh || fresh.fields['send'] !== true) {
+              console.log(`[Event] Skipping, send=false or deleted: ${recordId}`)
+              return
+            }
+            const text = fresh.fields['Текст сообщения']
+
             await clearSendFlag(recordId)
             const allMembers = await getClubMembers()
             const targets    = filterTargets(allMembers)
             for (const member of targets) {
               try {
-                await telegram.sendMessage(String(member.fields['telegram_id']), rec.text, {
+                await telegram.sendMessage(String(member.fields['telegram_id']), text, {
                   parse_mode: 'HTML',
                   link_preview_options: { is_disabled: true }
                 })
@@ -197,9 +204,9 @@ adminEventScene.action('event:confirm', async (ctx) => {
             }
             console.log(`[Event] Sent КЛУБ @ ${label} → ${targets.length} members`)
 
-            if (rec.text.startsWith('Через 15 минут')) {
+            if (text.startsWith('Через 15 минут')) {
               try {
-                const thisSend = new Date(rec.sendTime).getTime()
+                const thisSend = new Date(rec.sendTime).getTime()  // rec.sendTime — время не меняется
                 const allMsgs  = await getMessages()
                 const toDeactivate = allMsgs.filter(m => {
                   const t = m.fields['Время рассылки']
