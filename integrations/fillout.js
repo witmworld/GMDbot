@@ -152,6 +152,16 @@ export async function getMessages() {
   return data.records
 }
 
+export async function getMessageById(recordId) {
+  const url = `${BASE_URL}/bases/${FILLOUT_DATABASE_ID}/tables/${MESSAGE_TABLE_ID}/records/${recordId}`
+  const res = await fetch(url, {
+    headers: { 'Authorization': `Bearer ${FILLOUT_API_KEY}` },
+  })
+  const data = await res.json()
+  if (res.status >= 400) throw new Error(`getMessageById error: ${JSON.stringify(data)}`)
+  return data  // { id, fields }
+}
+
 export async function updateMessage(recordId, fields) {
   const url = `${BASE_URL}/bases/${FILLOUT_DATABASE_ID}/tables/${MESSAGE_TABLE_ID}/records/${recordId}`
   const res = await fetch(url, {

@@ -2,7 +2,7 @@ import { Scenes, Markup } from 'telegraf'
 import moment from 'moment-timezone'
 import { isAdmin } from '../utils/adminCheck.js'
 import { buildPaymentUrl } from '../integrations/allpay.js'
-import { createMessage, updateMessage, getMessages, getClubMembers, clearSendFlag } from '../integrations/fillout.js'
+import { createMessage, updateMessage, getMessages, getMessageById, getClubMembers, clearSendFlag } from '../integrations/fillout.js'
 import { hasActiveWebinarAccess } from '../utils/scheduler.js'
 
 const DEFAULT_PRICE_BASE     = 50
@@ -412,12 +412,20 @@ adminWebinarScene.action('webinar:confirm', async (ctx) => {
       if (delay > 0 && recordId) {
         setTimeout(async () => {
           try {
+            const fresh = await getMessageById(recordId)
+            if (!fresh || fresh.fields['send'] !== true) {
+              console.log(`[Webinar] Skipping, send=false or deleted: ${recordId}`)
+              return
+            }
+            const tariff = fresh.fields['Тариф']
+            const text   = fresh.fields['Текст сообщения']
+
             await clearSendFlag(recordId)
             const allMembers = await getClubMembers()
-            const targets    = filterTargets(allMembers, rec.tariff)
+            const targets    = filterTargets(allMembers, tariff)
             for (const member of targets) {
               try {
-                await telegram.sendMessage(String(member.fields['telegram_id']), rec.text, {
+                await telegram.sendMessage(String(member.fields['telegram_id']), text, {
                   parse_mode: 'HTML',
                   link_preview_options: { is_disabled: true }
                 })
@@ -425,10 +433,10 @@ adminWebinarScene.action('webinar:confirm', async (ctx) => {
                 console.error(`[Webinar] Send failed for ${member.fields['telegram_id']}:`, e.message)
               }
             }
-            console.log(`[Webinar] Sent ${rec.tariff} @ ${label} → ${targets.length} members`)
+            console.log(`[Webinar] Sent ${tariff} @ ${label} → ${targets.length} members`)
 
             // БАЗА 24h → пометить вебинар как активный
-            if (rec.tariff === 'БАЗА') {
+            if (tariff === 'БАЗА') {
               try {
                 await updateMessage(recordId, { Active: true })
                 console.log(`[Webinar] Set Active=true for БАЗА message ${recordId}`)
@@ -438,9 +446,9 @@ adminWebinarScene.action('webinar:confirm', async (ctx) => {
             }
 
             // 15-минутное сообщение → деактивировать все записи этого вебинара
-            if (rec.text.startsWith('Через 15 минут')) {
+            if (text.startsWith('Через 15 минут')) {
               try {
-                const thisSend = new Date(rec.sendTime).getTime()
+                const thisSend = new Date(rec.sendTime).getTime()  // rec.sendTime — время не меняется
                 const allMsgs = await getMessages()
                 const toDeactivate = allMsgs.filter(m => {
                   const t = m.fields['Время рассылки']
