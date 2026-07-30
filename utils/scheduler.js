@@ -10,15 +10,25 @@ const scheduledTimeouts = new Map()
 const escapeHtmlAttr = s => String(s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
-// Легаси-записи в Fillout могут содержать markdown-ссылки [текст](url).
-// При parse_mode: 'HTML' они выводятся сырым текстом — ссылка, а следом
-// её дубль в квадратных скобках. Переводим такие ссылки в HTML перед отправкой.
-export function markdownLinksToHtml(text) {
+// Админы набирают текст рассылок в Fillout в markdown, а отправка идёт с
+// parse_mode: 'HTML' — markdown не парсится, и в Telegram видно квадратные
+// скобки и дубль URL текстом. Переводим markdown в HTML перед отправкой:
+// [ссылка на вебинар](url) → кликабельное «ссылка на вебинар» без скобок.
+//
+// Готовые <a href="...">...</a> из шаблонов не трогаются: в них нет
+// квадратных скобок, поэтому под регулярку они не попадают.
+// Экранируются только URL и подпись, извлечённые из markdown (они по
+// определению не HTML) — текст целиком НЕ экранируется, иначе поломались бы
+// уже вставленные теги.
+export function mdToHtml(text) {
   if (!text) return text
-  return text.replace(
-    /\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g,
-    (_, label, url) => `<a href="${escapeHtmlAttr(url)}">${escapeHtmlAttr(label)}</a>`
-  )
+  return text
+    .replace(
+      /\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g,
+      (_, label, url) => `<a href="${escapeHtmlAttr(url)}">${escapeHtmlAttr(label)}</a>`
+    )
+    .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<b>$2</b>')
 }
 
 // Сдвиг внутри одного слота рассылки (за 24ч / 1ч / 15мин), чтобы записи
@@ -57,7 +67,7 @@ export function hasActiveWebinarAccess(member) {
 
 async function sendBroadcast(bot, msg) {
   const id     = msg.id
-  const text   = markdownLinksToHtml(msg.fields['Текст сообщения'])
+  const text   = mdToHtml(msg.fields['Текст сообщения'])
   const tariff = msg.fields['Тариф'] || null
 
   if (!text) {

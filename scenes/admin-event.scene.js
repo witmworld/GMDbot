@@ -2,7 +2,7 @@ import { Scenes, Markup } from 'telegraf'
 import moment from 'moment-timezone'
 import { isAdmin } from '../utils/adminCheck.js'
 import { createMessage, updateMessage, getMessages, getMessageById, getClubMembers, clearSendFlag } from '../integrations/fillout.js'
-import { markdownLinksToHtml, slotSendTime } from '../utils/scheduler.js'
+import { mdToHtml, slotSendTime } from '../utils/scheduler.js'
 
 const MONTHS = {
   'января': 1, 'февраля': 2, 'марта': 3, 'апреля': 4, 'мая': 5, 'июня': 6,
@@ -189,7 +189,7 @@ adminEventScene.action('event:confirm', async (ctx) => {
               console.log(`[Event] Skipping, send=false or deleted: ${recordId}`)
               return
             }
-            const text = markdownLinksToHtml(fresh.fields['Текст сообщения'])
+            const text = mdToHtml(fresh.fields['Текст сообщения'])
 
             await clearSendFlag(recordId)
             const allMembers = await getClubMembers()

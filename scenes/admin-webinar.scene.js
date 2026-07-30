@@ -3,7 +3,7 @@ import moment from 'moment-timezone'
 import { isAdmin } from '../utils/adminCheck.js'
 import { buildPaymentUrl } from '../integrations/allpay.js'
 import { createMessage, updateMessage, getMessages, getMessageById, getClubMembers, clearSendFlag } from '../integrations/fillout.js'
-import { hasActiveWebinarAccess, markdownLinksToHtml, slotSendTime } from '../utils/scheduler.js'
+import { hasActiveWebinarAccess, mdToHtml, slotSendTime } from '../utils/scheduler.js'
 
 const DEFAULT_PRICE_BASE     = 150
 const DEFAULT_PRICE_PRACTICE = 50
@@ -422,7 +422,7 @@ adminWebinarScene.action('webinar:confirm', async (ctx) => {
               return
             }
             const tariff = fresh.fields['Тариф']
-            const text   = markdownLinksToHtml(fresh.fields['Текст сообщения'])
+            const text   = mdToHtml(fresh.fields['Текст сообщения'])
 
             await clearSendFlag(recordId)
             const allMembers = await getClubMembers()
