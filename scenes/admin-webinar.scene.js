@@ -5,8 +5,8 @@ import { buildPaymentUrl } from '../integrations/allpay.js'
 import { createMessage, updateMessage, getMessages, getMessageById, getClubMembers, clearSendFlag } from '../integrations/fillout.js'
 import { hasActiveWebinarAccess, markdownLinksToHtml, slotSendTime } from '../utils/scheduler.js'
 
-const DEFAULT_PRICE_BASE     = 50
-const DEFAULT_PRICE_PRACTICE = 30
+const DEFAULT_PRICE_BASE     = 150
+const DEFAULT_PRICE_PRACTICE = 50
 
 const escapeHtml = (text) => text?.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') || ''
 
@@ -239,7 +239,7 @@ adminWebinarScene.on('text', async (ctx) => {
     const practice = parseFloat(parts[1])
     if (isNaN(base) || isNaN(practice) || base <= 0 || practice <= 0) {
       return ctx.reply(
-        '❌ Введите две суммы через пробел, например: <code>50 30</code>',
+        `❌ Введите две суммы через пробел, например: <code>${DEFAULT_PRICE_BASE} ${DEFAULT_PRICE_PRACTICE}</code>`,
         { parse_mode: 'HTML' }
       )
     }
