@@ -21,6 +21,22 @@ export function markdownLinksToHtml(text) {
   )
 }
 
+// Сдвиг внутри одного слота рассылки (за 24ч / 1ч / 15мин), чтобы записи
+// разных тарифов не приходились на одну и ту же минуту.
+// КЛУБ идёт по базовому времени — в мероприятиях это единственный тариф в слоте.
+export const TARIFF_SEND_OFFSET_MIN = {
+  'БАЗА':     0,
+  'КЛУБ':     0,
+  'ПРАКТИКА': 2,
+  'ДОСТУП':   4,
+  'ТЕСТ':     6,
+}
+
+// slot — moment базового времени слота; не мутируется.
+export function slotSendTime(slot, tariff) {
+  return slot.clone().add(TARIFF_SEND_OFFSET_MIN[tariff] ?? 0, 'minutes')
+}
+
 // Возвращает true если участник оплатил вебинар не более 30 дней назад.
 // Поле «Вебинар» может быть ISO строкой или dd/mm/yyyy.
 export function hasActiveWebinarAccess(member) {

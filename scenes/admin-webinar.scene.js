@@ -3,7 +3,7 @@ import moment from 'moment-timezone'
 import { isAdmin } from '../utils/adminCheck.js'
 import { buildPaymentUrl } from '../integrations/allpay.js'
 import { createMessage, updateMessage, getMessages, getMessageById, getClubMembers, clearSendFlag } from '../integrations/fillout.js'
-import { hasActiveWebinarAccess, markdownLinksToHtml } from '../utils/scheduler.js'
+import { hasActiveWebinarAccess, markdownLinksToHtml, slotSendTime } from '../utils/scheduler.js'
 
 const DEFAULT_PRICE_BASE     = 50
 const DEFAULT_PRICE_PRACTICE = 30
@@ -387,15 +387,17 @@ adminWebinarScene.action('webinar:confirm', async (ctx) => {
       `Есть вопросы или не получается подключиться? Пишите @where_is_themoney`
 
     // ── Создание 7 записей в MESSAGE table + планирование отправки ────────────
+    // sendTime = базовое время слота + сдвиг тарифа (БАЗА +0, ПРАКТИКА +2, ДОСТУП +4),
+    // чтобы записи одного слота не приходились на одну минуту.
     const records = [
-      { text: textBase24,      tariff: 'БАЗА',     sendTime: t24h.format(), zoomUrl: zoom },
-      { text: textPractice24,  tariff: 'ПРАКТИКА', sendTime: t24h.format(), zoomUrl: zoom },
-      { text: textPractice1h,  tariff: 'ПРАКТИКА', sendTime: t1h.format(),  zoomUrl: zoom },
-      { text: textPractice15m, tariff: 'ПРАКТИКА', sendTime: t15m.format(), zoomUrl: zoom },
-      { text: textAccess24,    tariff: 'ДОСТУП',   sendTime: t24h.format(), zoomUrl: zoom },
-      { text: textAccess1h,    tariff: 'ДОСТУП',   sendTime: t1h.format(),  zoomUrl: zoom },
-      { text: textAccess15m,   tariff: 'ДОСТУП',   sendTime: t15m.format(), zoomUrl: zoom },
-    ]
+      { text: textBase24,      tariff: 'БАЗА',     slot: t24h },
+      { text: textPractice24,  tariff: 'ПРАКТИКА', slot: t24h },
+      { text: textPractice1h,  tariff: 'ПРАКТИКА', slot: t1h  },
+      { text: textPractice15m, tariff: 'ПРАКТИКА', slot: t15m },
+      { text: textAccess24,    tariff: 'ДОСТУП',   slot: t24h },
+      { text: textAccess1h,    tariff: 'ДОСТУП',   slot: t1h  },
+      { text: textAccess15m,   tariff: 'ДОСТУП',   slot: t15m },
+    ].map(r => ({ ...r, sendTime: slotSendTime(r.slot, r.tariff).format(), zoomUrl: zoom }))
 
     for (const rec of records) {
       const created  = await createMessage({
@@ -473,13 +475,15 @@ adminWebinarScene.action('webinar:confirm', async (ctx) => {
       }
     }
 
+    const at = (slot, tariff) => slotSendTime(slot, tariff).format('DD.MM HH:mm')
+
     await ctx.reply(
       `✅ <b>Вебинар создан!</b>\n\n` +
-      `📋 Записей в MESSAGE table: 7\n\n` +
+      `📋 Записей в MESSAGE table: ${records.length}\n\n` +
       `⏰ Расписание рассылок:\n` +
-      `• ${t24h.tz('Asia/Jerusalem').format('DD.MM в HH:mm')} — за 24ч (БАЗА, ПРАКТИКА, ДОСТУП)\n` +
-      `• ${t1h.tz('Asia/Jerusalem').format('DD.MM в HH:mm')} — за 1ч (ПРАКТИКА, ДОСТУП)\n` +
-      `• ${t15m.tz('Asia/Jerusalem').format('DD.MM в HH:mm')} — за 15мин (ПРАКТИКА, ДОСТУП)\n\n` +
+      `• за 24ч — ${at(t24h, 'БАЗА')} БАЗА, ${at(t24h, 'ПРАКТИКА')} ПРАКТИКА, ${at(t24h, 'ДОСТУП')} ДОСТУП\n` +
+      `• за 1ч — ${at(t1h, 'ПРАКТИКА')} ПРАКТИКА, ${at(t1h, 'ДОСТУП')} ДОСТУП\n` +
+      `• за 15мин — ${at(t15m, 'ПРАКТИКА')} ПРАКТИКА, ${at(t15m, 'ДОСТУП')} ДОСТУП\n\n` +
       `🔗 Ссылка БАЗА: ${escapeHtml(linkBase)}\n` +
       `📹 Ссылка ПРАКТИКА: ${escapeHtml(linkPractice)}`,
       { parse_mode: 'HTML' }

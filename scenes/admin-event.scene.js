@@ -2,7 +2,7 @@ import { Scenes, Markup } from 'telegraf'
 import moment from 'moment-timezone'
 import { isAdmin } from '../utils/adminCheck.js'
 import { createMessage, updateMessage, getMessages, getMessageById, getClubMembers, clearSendFlag } from '../integrations/fillout.js'
-import { markdownLinksToHtml } from '../utils/scheduler.js'
+import { markdownLinksToHtml, slotSendTime } from '../utils/scheduler.js'
 
 const MONTHS = {
   'января': 1, 'февраля': 2, 'марта': 3, 'апреля': 4, 'мая': 5, 'июня': 6,
@@ -160,11 +160,12 @@ adminEventScene.action('event:confirm', async (ctx) => {
       `${zoomLine}` +
       `Есть вопросы? Пишите @where_is_themoney`
 
+    // sendTime = базовое время слота + сдвиг тарифа (общая таблица со сценой вебинара).
     const records = [
-      { text: text24h, tariff: 'КЛУБ', sendTime: t24h.format(), zoomUrl: zoom },
-      { text: text1h,  tariff: 'КЛУБ', sendTime: t1h.format(),  zoomUrl: zoom },
-      { text: text15m, tariff: 'КЛУБ', sendTime: t15m.format(), zoomUrl: zoom },
-    ]
+      { text: text24h, tariff: 'КЛУБ', slot: t24h },
+      { text: text1h,  tariff: 'КЛУБ', slot: t1h  },
+      { text: text15m, tariff: 'КЛУБ', slot: t15m },
+    ].map(r => ({ ...r, sendTime: slotSendTime(r.slot, r.tariff).format(), zoomUrl: zoom }))
 
     for (const rec of records) {
       const created  = await createMessage({
@@ -230,13 +231,15 @@ adminEventScene.action('event:confirm', async (ctx) => {
       }
     }
 
+    const at = slot => slotSendTime(slot, 'КЛУБ').format('DD.MM в HH:mm')
+
     await ctx.reply(
       `✅ <b>Мероприятие создано!</b>\n\n` +
-      `📋 Записей: 3 (все тарифы)\n\n` +
+      `📋 Записей: ${records.length} (все тарифы)\n\n` +
       `⏰ Расписание:\n` +
-      `• ${t24h.tz('Asia/Jerusalem').format('DD.MM в HH:mm')} — за 24ч\n` +
-      `• ${t1h.tz('Asia/Jerusalem').format('DD.MM в HH:mm')} — за 1ч\n` +
-      `• ${t15m.tz('Asia/Jerusalem').format('DD.MM в HH:mm')} — за 15мин`,
+      `• ${at(t24h)} — за 24ч\n` +
+      `• ${at(t1h)} — за 1ч\n` +
+      `• ${at(t15m)} — за 15мин`,
       { parse_mode: 'HTML' }
     )
   } catch (err) {
