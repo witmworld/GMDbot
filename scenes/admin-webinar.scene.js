@@ -1,7 +1,7 @@
 import { Scenes, Markup } from 'telegraf'
 import moment from 'moment-timezone'
 import { isAdmin } from '../utils/adminCheck.js'
-import { buildPaymentUrl } from '../integrations/allpay.js'
+import { buildPaymentUrl, ALLPAY_LINK_BASE, ALLPAY_LINK_PRACTICE } from '../integrations/allpay.js'
 import { createMessage, updateMessage, getMessages, getMessageById, getClubMembers, clearSendFlag } from '../integrations/fillout.js'
 import { hasActiveWebinarAccess, mdToHtml, slotSendTime } from '../utils/scheduler.js'
 
@@ -319,17 +319,23 @@ adminWebinarScene.action('webinar:confirm', async (ctx) => {
 
   try {
     // ── Платёжные ссылки ─────────────────────────────────────────────────────
-    // Диагностика: если переменная не задана, buildPaymentUrl вернёт строку
-    // "undefined?" и она уйдёт в текст сообщения, который сохраняется в Fillout.
-    const baseUrlBase     = process.env.ALLPAY_LINK_BASE
-    const baseUrlPractice = process.env.ALLPAY_LINK_PRACTICE
-    console.log('[Webinar] baseUrl for', 'БАЗА', '=', baseUrlBase || 'MISSING')
-    console.log('[Webinar] baseUrl for', 'ПРАКТИКА', '=', baseUrlPractice || 'MISSING')
+    // Константы из allpay.js: env переопределяет, иначе постоянная ссылка.
+    console.log('[Webinar] baseUrl for', 'БАЗА', '=', ALLPAY_LINK_BASE || 'MISSING')
+    console.log('[Webinar] baseUrl for', 'ПРАКТИКА', '=', ALLPAY_LINK_PRACTICE || 'MISSING')
 
-    const linkBase     = buildPaymentUrl(baseUrlBase,     { clientName: '', clientEmail: '', telegramId: '' })
-    const linkPractice = buildPaymentUrl(baseUrlPractice, { clientName: '', clientEmail: '', telegramId: '' })
+    const linkBase     = buildPaymentUrl(ALLPAY_LINK_BASE,     { clientName: '', clientEmail: '', telegramId: '' })
+    const linkPractice = buildPaymentUrl(ALLPAY_LINK_PRACTICE, { clientName: '', clientEmail: '', telegramId: '' })
     console.log(`[Webinar] Payment link БАЗА: ${linkBase}`)
     console.log(`[Webinar] Payment link ПРАКТИКА: ${linkPractice}`)
+
+    // Часть Б: явная ошибка лучше битой ссылки в рассылке.
+    // Записи сохраняются в Fillout вместе с текстом, поэтому сломанный URL
+    // уже не починить — прерываемся до создания записей.
+    if (!linkBase.startsWith('https://') || !linkPractice.startsWith('https://')) {
+      console.error('[Webinar] Aborting: bad payment URL', { linkBase, linkPractice })
+      await ctx.reply('❌ Ссылка на оплату не сформирована, вебинар не создан')
+      return ctx.scene.enter('ADMIN_MENU')
+    }
 
     // ── Вспомогательные переменные ───────────────────────────────────────────
     const dateMatch = d.dateText.match(/^(.+)\s+(\d{1,2}:\d{2})$/)

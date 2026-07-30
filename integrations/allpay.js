@@ -5,6 +5,12 @@ const ALLPAY_LOGIN = process.env.ALLPAY_LOGIN
 const ALLPAY_KEY = process.env.ALLPAY_KEY
 const WEBHOOK_URL = `${process.env.WEBHOOK_DOMAIN}/payment/webhook`
 
+// Постоянные публичные ссылки AllPay с зашитой суммой — не секреты.
+// env оставлен необязательным переопределителем: если переменная не задана
+// (или не долетела из Railway), используется значение по умолчанию.
+export const ALLPAY_LINK_BASE     = process.env.ALLPAY_LINK_BASE     || 'https://allpay.to/~iim/8981a3'
+export const ALLPAY_LINK_PRACTICE = process.env.ALLPAY_LINK_PRACTICE || 'https://allpay.to/~iim/82e03d'
+
 /**
  * SHA256 подпись запроса:
  * 1. Сортировка ключей по алфавиту

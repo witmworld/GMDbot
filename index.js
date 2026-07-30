@@ -29,6 +29,7 @@ import { createReceipt } from './integrations/greeninvoice.js'
 
 console.log('[ENV CHECK] ALLPAY_LINK_BASE:', process.env.ALLPAY_LINK_BASE || 'MISSING')
 console.log('[ENV CHECK] ALLPAY_LINK_PRACTICE:', process.env.ALLPAY_LINK_PRACTICE || 'MISSING')
+console.log('[ENV CHECK] keys with ALLPAY:', JSON.stringify(Object.keys(process.env).filter(k => k.toUpperCase().includes('ALLPAY'))))
 
 process.on('unhandledRejection', (err) => {
   console.error('[FATAL] Unhandled Rejection:', err)
