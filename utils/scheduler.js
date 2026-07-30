@@ -172,6 +172,7 @@ async function sendBroadcast(bot, msg) {
       const baseUrl = broadcastBase
         ? process.env.ALLPAY_LINK_BASE
         : process.env.ALLPAY_LINK_PRACTICE
+      console.log('[Webinar] baseUrl for', tariff, '=', baseUrl)
       const paymentUrl = buildPaymentUrl(baseUrl, {
         clientName:  member.fields['Имя, фамилия'] || '',
         clientEmail: member.fields['Электронная почта '] || '',

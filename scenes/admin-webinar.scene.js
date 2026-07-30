@@ -319,8 +319,15 @@ adminWebinarScene.action('webinar:confirm', async (ctx) => {
 
   try {
     // ── Платёжные ссылки ─────────────────────────────────────────────────────
-    const linkBase     = buildPaymentUrl(process.env.ALLPAY_LINK_BASE,     { clientName: '', clientEmail: '', telegramId: '' })
-    const linkPractice = buildPaymentUrl(process.env.ALLPAY_LINK_PRACTICE, { clientName: '', clientEmail: '', telegramId: '' })
+    // Диагностика: если переменная не задана, buildPaymentUrl вернёт строку
+    // "undefined?" и она уйдёт в текст сообщения, который сохраняется в Fillout.
+    const baseUrlBase     = process.env.ALLPAY_LINK_BASE
+    const baseUrlPractice = process.env.ALLPAY_LINK_PRACTICE
+    console.log('[Webinar] baseUrl for', 'БАЗА', '=', baseUrlBase || 'MISSING')
+    console.log('[Webinar] baseUrl for', 'ПРАКТИКА', '=', baseUrlPractice || 'MISSING')
+
+    const linkBase     = buildPaymentUrl(baseUrlBase,     { clientName: '', clientEmail: '', telegramId: '' })
+    const linkPractice = buildPaymentUrl(baseUrlPractice, { clientName: '', clientEmail: '', telegramId: '' })
     console.log(`[Webinar] Payment link БАЗА: ${linkBase}`)
     console.log(`[Webinar] Payment link ПРАКТИКА: ${linkPractice}`)
 

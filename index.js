@@ -27,6 +27,9 @@ import { getTariffs, getClubMembers, getClubMember, createClubMember, getClubMem
 import { findLeadByOrderId, updateLeadPaymentStatus, updateLeadFields } from './integrations/bitrix.js'
 import { createReceipt } from './integrations/greeninvoice.js'
 
+console.log('[ENV CHECK] ALLPAY_LINK_BASE:', process.env.ALLPAY_LINK_BASE || 'MISSING')
+console.log('[ENV CHECK] ALLPAY_LINK_PRACTICE:', process.env.ALLPAY_LINK_PRACTICE || 'MISSING')
+
 process.on('unhandledRejection', (err) => {
   console.error('[FATAL] Unhandled Rejection:', err)
 })
