@@ -7,6 +7,19 @@ console.log('[Scheduler] Instance ID:', SCHEDULER_ID)
 
 const scheduledTimeouts = new Map()
 
+const escapeHtmlAttr = s => String(s)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+// Легаси-записи в Fillout могут содержать markdown-ссылки [текст](url).
+// При parse_mode: 'HTML' они выводятся сырым текстом — ссылка, а следом
+// её дубль в квадратных скобках. Переводим такие ссылки в HTML перед отправкой.
+export function markdownLinksToHtml(text) {
+  if (!text) return text
+  return text.replace(
+    /\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g,
+    (_, label, url) => `<a href="${escapeHtmlAttr(url)}">${escapeHtmlAttr(label)}</a>`
+  )
+}
 
 // Возвращает true если участник оплатил вебинар не более 30 дней назад.
 // Поле «Вебинар» может быть ISO строкой или dd/mm/yyyy.
@@ -28,7 +41,7 @@ export function hasActiveWebinarAccess(member) {
 
 async function sendBroadcast(bot, msg) {
   const id     = msg.id
-  const text   = msg.fields['Текст сообщения']
+  const text   = markdownLinksToHtml(msg.fields['Текст сообщения'])
   const tariff = msg.fields['Тариф'] || null
 
   if (!text) {
@@ -138,9 +151,11 @@ async function sendBroadcast(bot, msg) {
         clientEmail: member.fields['Электронная почта '] || '',
         telegramId:  member.fields['telegram_id'],
       })
+      // Функция-replacer, а не строка: в URL могут быть $-последовательности ($&, $1),
+      // которые String.replace трактует как ссылки на группы.
       messageText = text.replace(
         /₪: 👉 <a href="https?:\/\/[^"]*">[^<]*<\/a>/,
-        `₪: 👉 <a href="${paymentUrl}">Оплатить</a>`
+        () => `₪: 👉 <a href="${escapeHtmlAttr(paymentUrl)}">Оплатить</a>`
       )
     }
 

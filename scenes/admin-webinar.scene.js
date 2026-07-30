@@ -3,7 +3,7 @@ import moment from 'moment-timezone'
 import { isAdmin } from '../utils/adminCheck.js'
 import { buildPaymentUrl } from '../integrations/allpay.js'
 import { createMessage, updateMessage, getMessages, getMessageById, getClubMembers, clearSendFlag } from '../integrations/fillout.js'
-import { hasActiveWebinarAccess } from '../utils/scheduler.js'
+import { hasActiveWebinarAccess, markdownLinksToHtml } from '../utils/scheduler.js'
 
 const DEFAULT_PRICE_BASE     = 50
 const DEFAULT_PRICE_PRACTICE = 30
@@ -219,7 +219,7 @@ adminWebinarScene.on('text', async (ctx) => {
     data.description = ctx.message.text.trim()
     ctx.session.webinarStep = 5
     return ctx.reply(
-      '🔗 <b>Создание вебинара</b>\n\nШаг 5/6: Введите ссылку на Zoom:\n<i>Отправьте `-` если ссылки пока нет</i>',
+      '🔗 <b>Создание вебинара</b>\n\nШаг 5/6: Введите ссылку на Zoom:\n<i>Отправьте <code>-</code> если ссылки пока нет</i>',
       { parse_mode: 'HTML', ...cancelKeyboard }
     )
   }
@@ -329,12 +329,14 @@ adminWebinarScene.action('webinar:confirm', async (ctx) => {
     const datePart  = dateMatch ? dateMatch[1] : d.dateText
     const timePart  = dateMatch ? dateMatch[2] : ''
 
-    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const esc     = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const escAttr = s => esc(s).replace(/"/g, '&quot;')
 
     const zoom          = d.zoomUrl
-    const zoomLine      = zoom ? `<a href="${zoom}">Ссылка на Zoom</a>\n\n` : ''
-    const zoomOrLater   = zoom ? `<a href="${zoom}">Ссылка на Zoom</a>\n\n` : 'Ссылка на Zoom придёт позже\n\n'
-    const zoomOrContact = zoom ? `<a href="${zoom}">Ссылка на Zoom</a>\n\n` : 'уточните у @where_is_themoney\n\n'
+    const zoomHref      = zoom ? `<a href="${escAttr(zoom)}">Ссылка на Zoom</a>\n\n` : ''
+    const zoomLine      = zoomHref
+    const zoomOrLater   = zoomHref || 'Ссылка на Zoom придёт позже\n\n'
+    const zoomOrContact = zoomHref || 'уточните у @where_is_themoney\n\n'
 
     // ── Времена рассылки ──────────────────────────────────────────────────────
     const t24h = moment.tz(d.dateIso, 'Asia/Jerusalem').subtract(24, 'hours')
@@ -346,26 +348,26 @@ adminWebinarScene.action('webinar:confirm', async (ctx) => {
     const textBase24 =
       `Привет! 👋 Завтра, ${datePart} в ${timePart} — вебинар «${esc(d.title)}» с ${esc(d.speaker)}.\n\n` +
       `${esc(d.description)}\n\n` +
-      `Хотите присоединиться онлайн или получить запись — доплата ${d.priceBase}₪: 👉 <a href="${linkBase}">Оплатить</a>\n\n` +
+      `Хотите присоединиться онлайн или получить запись — доплата ${d.priceBase}₪: 👉 <a href="${escAttr(linkBase)}">Оплатить</a>\n\n` +
       `Есть вопросы? Пишите @where_is_themoney`
 
     const textPractice24 =
       `Привет! 👋 Завтра, ${datePart} в ${timePart} — вебинар «${esc(d.title)}» с ${esc(d.speaker)}.\n\n` +
       `${esc(d.description)}\n\n` +
-      `Запись в ваш тариф не входит, но можно исправить — ${d.pricePractice}₪: 👉 <a href="${linkPractice}">Оплатить</a>\n\n` +
+      `Запись в ваш тариф не входит, но можно исправить — ${d.pricePractice}₪: 👉 <a href="${escAttr(linkPractice)}">Оплатить</a>\n\n` +
       `${zoomLine}` +
       `Есть вопросы? Пишите @where_is_themoney`
 
     const textPractice1h =
       `Привет! Через час — вебинар «${esc(d.title)}» с ${esc(d.speaker)}.\n\n` +
-      `Запись не входит в ваш тариф — ${d.pricePractice}₪: 👉 <a href="${linkPractice}">Оплатить</a>\n\n` +
+      `Запись не входит в ваш тариф — ${d.pricePractice}₪: 👉 <a href="${escAttr(linkPractice)}">Оплатить</a>\n\n` +
       `${zoomOrLater}` +
       `Есть вопросы? Пишите @where_is_themoney`
 
     const textPractice15m =
       `Через 15 минут начинаем! 🎙 «${esc(d.title)}» с ${esc(d.speaker)}.\n\n` +
       `${zoomOrContact}` +
-      `Запись в ваш тариф не входит. Хотите сохранить — доплата ${d.pricePractice}₪: 👉 <a href="${linkPractice}">Оплатить</a>\n\n` +
+      `Запись в ваш тариф не входит. Хотите сохранить — доплата ${d.pricePractice}₪: 👉 <a href="${escAttr(linkPractice)}">Оплатить</a>\n\n` +
       `Есть вопросы или не получается подключиться? Пишите @where_is_themoney`
 
     const textAccess24 =
@@ -418,7 +420,7 @@ adminWebinarScene.action('webinar:confirm', async (ctx) => {
               return
             }
             const tariff = fresh.fields['Тариф']
-            const text   = fresh.fields['Текст сообщения']
+            const text   = markdownLinksToHtml(fresh.fields['Текст сообщения'])
 
             await clearSendFlag(recordId)
             const allMembers = await getClubMembers()

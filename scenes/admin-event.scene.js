@@ -2,7 +2,7 @@ import { Scenes, Markup } from 'telegraf'
 import moment from 'moment-timezone'
 import { isAdmin } from '../utils/adminCheck.js'
 import { createMessage, updateMessage, getMessages, getMessageById, getClubMembers, clearSendFlag } from '../integrations/fillout.js'
-import { hasActiveWebinarAccess } from '../utils/scheduler.js'
+import { markdownLinksToHtml } from '../utils/scheduler.js'
 
 const MONTHS = {
   'января': 1, 'февраля': 2, 'марта': 3, 'апреля': 4, 'мая': 5, 'июня': 6,
@@ -90,7 +90,7 @@ adminEventScene.on('text', async (ctx) => {
     data.description = ctx.message.text.trim()
     ctx.session.eventStep = 5
     return ctx.reply(
-      '🔗 <b>Создание мероприятия</b>\n\nШаг 5/5: Введите ссылку на Zoom:\n<i>Отправьте `-` если ссылки пока нет</i>',
+      '🔗 <b>Создание мероприятия</b>\n\nШаг 5/5: Введите ссылку на Zoom:\n<i>Отправьте <code>-</code> если ссылки пока нет</i>',
       { parse_mode: 'HTML', ...cancelKeyboard }
     )
   }
@@ -134,10 +134,11 @@ adminEventScene.action('event:confirm', async (ctx) => {
     const datePart  = dateMatch ? dateMatch[1] : d.dateText
     const timePart  = dateMatch ? dateMatch[2] : ''
 
-    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const esc     = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const escAttr = s => esc(s).replace(/"/g, '&quot;')
 
-    const zoom          = d.zoomUrl
-    const zoomLine = zoom ? `<a href="${zoom}">Ссылка на Zoom</a>\n\n` : ''
+    const zoom     = d.zoomUrl
+    const zoomLine = zoom ? `<a href="${escAttr(zoom)}">Ссылка на Zoom</a>\n\n` : ''
 
     const t24h = moment.tz(d.dateIso, 'Asia/Jerusalem').subtract(24, 'hours')
     const t1h  = moment.tz(d.dateIso, 'Asia/Jerusalem').subtract(1, 'hour')
@@ -187,7 +188,7 @@ adminEventScene.action('event:confirm', async (ctx) => {
               console.log(`[Event] Skipping, send=false or deleted: ${recordId}`)
               return
             }
-            const text = fresh.fields['Текст сообщения']
+            const text = markdownLinksToHtml(fresh.fields['Текст сообщения'])
 
             await clearSendFlag(recordId)
             const allMembers = await getClubMembers()
