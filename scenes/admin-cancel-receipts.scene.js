@@ -21,7 +21,7 @@ adminCancelReceiptsScene.enter(async (ctx) => {
     '🧾 *Отмена квитанций*\n\nЗагрузите Excel файл с квитанциями для отмены:',
     {
       parse_mode: 'Markdown',
-      ...Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel:abort')]])
+      ...Markup.inlineKeyboard([[Markup.button.callback('❌ Не выполнять', 'cancel:abort')]])
     }
   )
 })
@@ -113,7 +113,7 @@ adminCancelReceiptsScene.on('document', async (ctx) => {
 
   // Preflight: подтягиваем реального client.name по каждому id ДО отмены —
   // чтобы админ увидел, что иврит/кириллица/латиница приходят читаемыми,
-  // прежде чем нажать "Отменить все". На самой отмене cancelGreenInvoiceDocument
+  // прежде чем нажать "Выполнить отмену". На самой отмене cancelGreenInvoiceDocument
   // запросит документ заново — это чтение не экономит вызов, а лишь даёт превью.
   const counts = { hebrew: 0, cyrillic: 0, latin: 0, empty: 0, error: 0 }
   let checked = 0
@@ -160,8 +160,8 @@ adminCancelReceiptsScene.on('document', async (ctx) => {
   await ctx.reply(
     preview,
     Markup.inlineKeyboard([
-      [Markup.button.callback('✅ Отменить все', 'cancel:confirm')],
-      [Markup.button.callback('❌ Отмена', 'cancel:abort')]
+      [Markup.button.callback('✅ Выполнить отмену', 'cancel:confirm')],
+      [Markup.button.callback('❌ Не выполнять', 'cancel:abort')]
     ])
   )
 })
