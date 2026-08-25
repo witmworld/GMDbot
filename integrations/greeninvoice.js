@@ -41,6 +41,26 @@ export async function getToken() {
   return cachedToken
 }
 
+export async function getDocument(id) {
+  const token = await getToken()
+
+  const res = await fetch(`${BASE_URL}/documents/${id}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    }
+  })
+
+  const data = await res.json()
+
+  if (res.status >= 400 || data.errorCode) {
+    throw new Error(`GreenInvoice getDocument failed: ${data.errorCode ?? res.status} — ${data.errorMessage ?? JSON.stringify(data)}`)
+  }
+
+  return data
+}
+
 export async function createReceipt({ clientName, clientEmail, clientPhone, amount, description, orderId }) {
   const token = await getToken()
 
@@ -88,12 +108,24 @@ export async function createReceipt({ clientName, clientEmail, clientPhone, amou
   return data
 }
 
-export async function cancelGreenInvoiceDocument({ id, name, email, amount }) {
-  const token = await getToken()
-
+export async function cancelGreenInvoiceDocument({ id, amount }) {
   console.log('[GreenInvoice Cancel] documentId:', JSON.stringify(id), 'length:', id.length)
-  console.log('[GreenInvoice Cancel] client name:', name, '| email:', email, '| amount:', amount)
+
+  // Имя из Excel непригодно: колонка לקוח для многих строк пуста в XML,
+  // а ивритские значения — мохибейк win1255. Кириллица в выгрузке Morning
+  // невосстановима в принципе (win1255 не может её представить), поэтому
+  // Excel даёт только id и сумму. Клиент запрашивается из исходного документа.
+  const original = await getDocument(id)
+  const client = original.client
+
+  if (!client || !client.name) {
+    throw new Error(`Нет client.name в исходном документе ${id} — зикуй не создаётся`)
+  }
+
+  console.log('[GreenInvoice Cancel] client from original document:', JSON.stringify(client))
   console.log('[GreenInvoice Cancel] Creating זיכוי (type 410) for linkedDocumentId:', id)
+
+  const token = await getToken()
 
   const res = await fetch(`${BASE_URL}/documents`, {
     method: 'POST',
@@ -108,9 +140,12 @@ export async function cancelGreenInvoiceDocument({ id, name, email, amount }) {
       signed: true,
       currency: 'ILS',
       client: {
-        name:  name || '',
-        email: 'cancel@cancel.com',
-        add:   false
+        name:   client.name,
+        // Плейсхолдер, не реальный e-mail клиента (CLAUDE.md) — иначе
+        // GreenInvoice разошлёт клиенту письмо о служебной операции отмены.
+        emails: ['cancel@cancel.com'],
+        phone:  client.phone || '',
+        add:    false
       },
       income: [
         {
