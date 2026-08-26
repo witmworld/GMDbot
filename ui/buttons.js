@@ -14,6 +14,9 @@ export const Buttons = {
 
   // Confirm
   confirmOk: () => ({ text: '✅ Подтвердить и перейти к оплате', callback_data: 'confirm:ok' }),
+  coupon: () => ({ text: '🎟 У меня есть купон', callback_data: 'confirm:coupon' }),
+  couponApply: () => ({ text: '✅ Оплатить со скидкой', callback_data: 'confirm:coupon_apply' }),
+  couponDecline: () => ({ text: '❌ Без скидки', callback_data: 'confirm:coupon_decline' }),
 
   // Documents
   docType: (code, title) => ({ text: title, callback_data: `doc:${code}` }),

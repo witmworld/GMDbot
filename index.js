@@ -24,19 +24,9 @@ import { menuScene } from './scenes/menu.scene.js'
 import { subscribeScene } from './scenes/subscribe.scene.js'
 import { scanGroupMembers } from './utils/group-scanner.js'
 import { startScheduler, hasActiveWebinarAccess, forceSendPending } from './utils/scheduler.js'
-import { getTariffs, getClubMembers, getClubMember, createClubMember, getClubMemberRecord, findOrCreateClubMember, setMemberAdminFlag, updateClubMemberFields, getMessages } from './integrations/fillout.js'
-import { findLeadByOrderId, updateLeadPaymentStatus, updateLeadFields } from './integrations/bitrix.js'
+import { getTariffs, getClubMembers, getClubMember, createClubMember, getClubMemberRecord, setMemberAdminFlag, updateClubMemberFields, getMessages } from './integrations/fillout.js'
 import { createReceipt } from './integrations/greeninvoice.js'
-
-// Fillout приводит любую входящую дату в date-поле к YYYY-MM-DD, но как он
-// разбирает dd/mm/yyyy при дне ≤ 12 — не проверено (день/месяц можно спутать
-// молча). Пишем сразу в ISO, чтобы не зависеть от парсинга на стороне Fillout.
-function toIsoDate(date) {
-  const dd   = String(date.getDate()).padStart(2, '0')
-  const mm   = String(date.getMonth() + 1).padStart(2, '0')
-  const yyyy = date.getFullYear()
-  return `${yyyy}-${mm}-${dd}`
-}
+import { toIsoDate, processTariffPayment } from './utils/tariffPayment.js'
 
 console.log('[ENV CHECK] ALLPAY_LINK_BASE:', process.env.ALLPAY_LINK_BASE || 'MISSING')
 console.log('[ENV CHECK] ALLPAY_LINK_PRACTICE:', process.env.ALLPAY_LINK_PRACTICE || 'MISSING')
@@ -577,82 +567,7 @@ try {
         }
       }
     } else if (body.status === '1' && body.order_id) {
-      const telegramId = body.add_field || body.order_id.split('_')[0]
-      try {
-        // Участник CLUB — ДО Bitrix, чтобы при сбое Bitrix участник уже был записан.
-        if (body.name && telegramId && !/доступ|вебинар/i.test(body.name)) {
-          try {
-            const nameParts = body.name.split(' — ')
-            const tariffTitle = nameParts[0] || ''
-            const subscription = nameParts[1] || ''
-
-            const clubMember = await findOrCreateClubMember({
-              telegramId,
-              email: body.client_email,
-              phone: body.client_phone,
-              name: body.client_name || '',
-              tariffTitle,
-              subscription,
-            })
-            console.log(`[Webhook] CLUB member ready for telegramId ${telegramId}: ${clubMember.id}`)
-          } catch (err) {
-            console.error(`[Webhook] Club member update failed for telegramId ${telegramId}:`, err.message)
-          }
-        }
-
-        const lead = await findLeadByOrderId(body.order_id)
-        if (lead?.ID) {
-          await updateLeadPaymentStatus(lead.ID, body)
-        }
-
-        try {
-          const receipt = await createReceipt({
-            clientName: body.client_name || '',
-            clientEmail: body.client_email || '',
-            clientPhone: body.client_phone || '',
-            amount: Number(body.amount) || 0,
-            description: body.name || 'Оплата клуб ГМД',
-            orderId: body.order_id
-          })
-
-          const receiptUrl = receipt.receipt_url || receipt.url || receipt.shareUrl || ''
-          if (receiptUrl && lead?.ID) {
-            await updateLeadFields(lead.ID, { UF_CRM_1734183234: receiptUrl })
-          }
-
-          if (receiptUrl && telegramId) {
-            await bot.telegram.sendMessage(
-              telegramId,
-              `תודה! 🙏\nקבלה נשלחה לאימייל שלך.\nלצפייה בקבלה: ${receiptUrl}`
-            )
-          }
-        } catch (err) {
-          console.error('❌ Ошибка создания квитанции GreenInvoice:', err)
-        }
-
-        if (/доступ|вебинар/i.test(body.name || '') && telegramId) {
-          console.log(`[Webhook] Access payment for telegramId: ${telegramId}`)
-          try {
-            const memberRecord = await getClubMemberRecord(telegramId)
-            if (memberRecord) {
-              const dateStr = toIsoDate(new Date())
-              await updateClubMemberFields(memberRecord.id, { 'Вебинар': dateStr })
-              console.log(`[Webhook] Updated Вебинар field for telegramId: ${telegramId} → ${dateStr}`)
-            }
-            const messages = await getMessages()
-            const activeWebinar = messages.find(m => m.fields['Active'] === true && m.fields['ZOOM_URL'])
-            const zoomUrl = activeWebinar?.fields['ZOOM_URL'] || null
-            const webinarMsg = zoomUrl
-              ? `✅ Оплата получена!\nСсылка на вебинар: ${zoomUrl}`
-              : '✅ Оплата получена!\nСсылка на Zoom придёт вам в боте незадолго до начала вебинара.'
-            await bot.telegram.sendMessage(telegramId, webinarMsg)
-          } catch (err) {
-            console.error(`[Webhook] Webinar update failed for telegramId ${telegramId}:`, err.message)
-          }
-        }
-      } catch (err) {
-        console.error('❌ Ошибка обновления лида после оплаты:', err)
-      }
+      await processTariffPayment(bot, body)
     }
 
     res.sendStatus(200)

@@ -42,7 +42,15 @@ export const Keyboards = {
   confirmMenu: () => ({
     inline_keyboard: [
       [Buttons.confirmOk()],
+      [Buttons.coupon()],
       [Buttons.back('PERIOD')]
+    ]
+  }),
+
+  couponPreviewMenu: () => ({
+    inline_keyboard: [
+      [Buttons.couponApply()],
+      [Buttons.couponDecline()]
     ]
   }),
 
