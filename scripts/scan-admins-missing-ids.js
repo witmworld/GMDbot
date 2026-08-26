@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import { Telegraf } from 'telegraf'
-import { getClubMembers } from '../integrations/fillout.js'
+import { getClubMembers, CLUB_FIELD_EMAIL, CLUB_FIELD_TELEGRAM_ID } from '../integrations/fillout.js'
 
 const BOT_TOKEN = process.env.BOT_TOKEN
 const GROUP_ID = -1003528829419
@@ -23,7 +23,7 @@ async function scan() {
     for (const member of clubMembers) {
       const filloutName = (member.fields['Имя, фамилия'] || '').toLowerCase()
       const filloutNick = (member.fields['Ник в ТГ'] || '').toLowerCase()
-      const filloutTelegramId = member.fields['telegram_id']
+      const filloutTelegramId = member.fields[CLUB_FIELD_TELEGRAM_ID]
 
       // Уже есть ID — пропускаем
       if (filloutTelegramId) continue
@@ -54,7 +54,7 @@ async function scan() {
     const tgUser = user.username ? `@${user.username}` : 'нет'
 
     console.log(`\n👤 TELEGRAM:  ${tgName} | ${tgUser} | ID: ${user.id}`)
-    console.log(`   FILLOUT:   ${f['Имя, фамилия']} | ${f['Электронная почта '] || '—'} | ник: ${f['Ник в ТГ'] || '—'} | ID: ${f['telegram_id'] ?? 'нет'}`)
+    console.log(`   FILLOUT:   ${f['Имя, фамилия']} | ${f[CLUB_FIELD_EMAIL] || '—'} | ник: ${f['Ник в ТГ'] || '—'} | ID: ${f[CLUB_FIELD_TELEGRAM_ID] ?? 'нет'}`)
     console.log(`   Совпало:   ${matchType}`)
     console.log(`   Record ID: ${member.id}`)
   }

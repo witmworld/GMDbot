@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import { Telegraf } from 'telegraf'
-import { getClubMembers } from '../integrations/fillout.js'
+import { getClubMembers, CLUB_FIELD_EMAIL, CLUB_FIELD_TELEGRAM_ID } from '../integrations/fillout.js'
 
 const BOT_TOKEN = process.env.BOT_TOKEN
 const GROUP_ID = -1003528829419
@@ -49,7 +49,7 @@ async function scanAdmins() {
         console.log(`   ✅ FOUND ${matches.length} match(es):`)
         matches.forEach(m => {
           const fields = m.member.fields
-          console.log(`      - ${fields['Имя, фамилия'] || ''} | ${fields['Электронная почта '] || ''} | ${fields['Ник в ТГ'] || ''}`)
+          console.log(`      - ${fields['Имя, фамилия'] || ''} | ${fields[CLUB_FIELD_EMAIL] || ''} | ${fields['Ник в ТГ'] || ''}`)
           console.log(`        Matched by: ${m.matchType}`)
         })
       } else {
@@ -98,7 +98,7 @@ function findMatches(telegramUser, clubMembers) {
   for (const member of clubMembers) {
     const filloutName = (member.fields['Имя, фамилия'] || '').toLowerCase()
     const filloutNick = (member.fields['Ник в ТГ'] || '').toLowerCase()
-    const filloutTelegramId = member.fields['telegram_id']
+    const filloutTelegramId = member.fields[CLUB_FIELD_TELEGRAM_ID]
 
     let matchType = null
 

@@ -1,5 +1,5 @@
 import { Scenes, Markup } from 'telegraf'
-import { getClubMembers, updateClubMemberTelegram } from '../integrations/fillout.js'
+import { getClubMembers, updateClubMemberTelegram, CLUB_FIELD_EMAIL, CLUB_FIELD_PHONE } from '../integrations/fillout.js'
 
 export const subscribeScene = new Scenes.BaseScene('SUBSCRIBE')
 
@@ -66,11 +66,11 @@ subscribeScene.on('text', async (ctx) => {
   }
 
   const found = records.find(r => {
-    console.log('Email from DB:', r.fields['Электронная почта'])
+    console.log('Email from DB:', r.fields[CLUB_FIELD_EMAIL])
     const recEmail = String(
-      r.fields['Электронная почта'] || r.fields['Электронная почта '] || r.fields['Email'] || ''
+      r.fields[CLUB_FIELD_EMAIL] || r.fields['Email'] || ''
     ).toLowerCase()
-    const recPhone   = normalizePhone(r.fields['Телефон'])
+    const recPhone   = normalizePhone(r.fields[CLUB_FIELD_PHONE])
     const emailMatch = recEmail === emailLower
     const phoneMatch = phoneNorm.length > 0 && recPhone.length > 0 &&
                        last9(phoneNorm) === last9(recPhone)
@@ -101,9 +101,7 @@ subscribeScene.on('text', async (ctx) => {
 
   const u = ctx.from
   const myUsername  = ctx.from.username
-  const recordEmail = String(
-    found.fields['Электронная почта'] || found.fields['Электронная почта '] || ''
-  ).trim()
+  const recordEmail = String(found.fields[CLUB_FIELD_EMAIL] || '').trim()
   const emailToFill = !recordEmail ? emailLower : null
 
   // Always notify admin

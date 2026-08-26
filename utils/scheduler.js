@@ -1,5 +1,5 @@
 import moment from 'moment-timezone'
-import { getMessages, getClubMembers, clearSendFlag, updateMessage } from '../integrations/fillout.js'
+import { getMessages, getClubMembers, clearSendFlag, updateMessage, CLUB_FIELD_EMAIL, CLUB_FIELD_TELEGRAM_ID, CLUB_FIELD_TARIFF } from '../integrations/fillout.js'
 import { buildPaymentUrl, ALLPAY_LINK_BASE, ALLPAY_LINK_PRACTICE } from '../integrations/allpay.js'
 
 const SCHEDULER_ID = Math.random().toString(36).substring(7)
@@ -92,14 +92,14 @@ async function sendBroadcast(bot, msg) {
   }
 
   console.log(`[Scheduler] All members count:`, allMembers.length)
-  console.log(`[Scheduler] БАЗА members:`, allMembers.filter(m => m.fields['Тариф'] === 'БАЗА').length)
-  console.log(`[Scheduler] ПРАКТИКА members:`, allMembers.filter(m => m.fields['Тариф'] === 'ПРАКТИКА').length)
-  console.log(`[Scheduler] ТЕСТ members:`, allMembers.filter(m => m.fields['Тариф'] === 'ТЕСТ').length)
-  console.log(`[Scheduler] БАЗА with telegram_id:`, allMembers.filter(m => m.fields['Тариф'] === 'БАЗА' && m.fields['telegram_id']).length)
+  console.log(`[Scheduler] БАЗА members:`, allMembers.filter(m => m.fields[CLUB_FIELD_TARIFF] === 'БАЗА').length)
+  console.log(`[Scheduler] ПРАКТИКА members:`, allMembers.filter(m => m.fields[CLUB_FIELD_TARIFF] === 'ПРАКТИКА').length)
+  console.log(`[Scheduler] ТЕСТ members:`, allMembers.filter(m => m.fields[CLUB_FIELD_TARIFF] === 'ТЕСТ').length)
+  console.log(`[Scheduler] БАЗА with telegram_id:`, allMembers.filter(m => m.fields[CLUB_FIELD_TARIFF] === 'БАЗА' && m.fields[CLUB_FIELD_TELEGRAM_ID]).length)
   console.log(`[Scheduler] БАЗА sample (first 3):`, JSON.stringify(
-    allMembers.filter(m => m.fields['Тариф'] === 'БАЗА').slice(0, 3).map(m => ({
-      Тариф: m.fields['Тариф'],
-      telegram_id: m.fields['telegram_id'],
+    allMembers.filter(m => m.fields[CLUB_FIELD_TARIFF] === 'БАЗА').slice(0, 3).map(m => ({
+      Тариф: m.fields[CLUB_FIELD_TARIFF],
+      telegram_id: m.fields[CLUB_FIELD_TELEGRAM_ID],
       Вебинар: m.fields['Вебинар'],
     }))
   ))
@@ -125,8 +125,8 @@ async function sendBroadcast(bot, msg) {
   }
 
   const targets = allMembers.filter(m => {
-    const tgId       = m.fields['telegram_id']
-    const userTariff = m.fields['Тариф']
+    const tgId       = m.fields[CLUB_FIELD_TELEGRAM_ID]
+    const userTariff = m.fields[CLUB_FIELD_TARIFF]
     if (!tgId) return false
 
     if (broadcastAll)     return true
@@ -164,8 +164,8 @@ async function sendBroadcast(bot, msg) {
   const sentByTariff = {}  // { 'БАЗА': N, 'ПРАКТИКА': N, ... } без ТЕСТ
 
   for (const member of targets) {
-    const tgId   = String(member.fields['telegram_id'])
-    const isTEST = member.fields['Тариф'] === 'ТЕСТ'
+    const tgId   = String(member.fields[CLUB_FIELD_TELEGRAM_ID])
+    const isTEST = member.fields[CLUB_FIELD_TARIFF] === 'ТЕСТ'
     let messageText = text
 
     if (is24hWebinar) {
@@ -175,8 +175,8 @@ async function sendBroadcast(bot, msg) {
       console.log('[Webinar] baseUrl for', tariff, '=', baseUrl)
       const paymentUrl = buildPaymentUrl(baseUrl, {
         clientName:  member.fields['Имя, фамилия'] || '',
-        clientEmail: member.fields['Электронная почта '] || '',
-        telegramId:  member.fields['telegram_id'],
+        clientEmail: member.fields[CLUB_FIELD_EMAIL] || '',
+        telegramId:  member.fields[CLUB_FIELD_TELEGRAM_ID],
       })
       // Функция-replacer, а не строка: в URL могут быть $-последовательности ($&, $1),
       // которые String.replace трактует как ссылки на группы.
@@ -194,7 +194,7 @@ async function sendBroadcast(bot, msg) {
       sent++
       if (!isTEST) {
         sentNonTest++
-        const t = member.fields['Тариф'] || '?'
+        const t = member.fields[CLUB_FIELD_TARIFF] || '?'
         sentByTariff[t] = (sentByTariff[t] || 0) + 1
       }
     } catch (e) {
@@ -238,7 +238,7 @@ async function sendBroadcast(bot, msg) {
   }
 
   // Отчёт для ТЕСТ-участников после каждой рассылки
-  const testTargets = targets.filter(m => m.fields['Тариф'] === 'ТЕСТ')
+  const testTargets = targets.filter(m => m.fields[CLUB_FIELD_TARIFF] === 'ТЕСТ')
   if (testTargets.length > 0) {
     const lines = Object.entries(sentByTariff)
       .sort(([a], [b]) => a.localeCompare(b))
@@ -251,10 +251,10 @@ async function sendBroadcast(bot, msg) {
       `Ошибок: ${errorsNonTest}`
     for (const m of testTargets) {
       try {
-        await bot.telegram.sendMessage(String(m.fields['telegram_id']), report)
-        console.log(`[Scheduler ${SCHEDULER_ID}] ТЕСТ report [${label}] sent to ${m.fields['telegram_id']}`)
+        await bot.telegram.sendMessage(String(m.fields[CLUB_FIELD_TELEGRAM_ID]), report)
+        console.log(`[Scheduler ${SCHEDULER_ID}] ТЕСТ report [${label}] sent to ${m.fields[CLUB_FIELD_TELEGRAM_ID]}`)
       } catch (e) {
-        console.error(`[Scheduler ${SCHEDULER_ID}] Failed to send ТЕСТ report to ${m.fields['telegram_id']}:`, e.message)
+        console.error(`[Scheduler ${SCHEDULER_ID}] Failed to send ТЕСТ report to ${m.fields[CLUB_FIELD_TELEGRAM_ID]}:`, e.message)
       }
     }
   }

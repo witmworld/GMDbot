@@ -2,7 +2,7 @@ import { Scenes, Markup } from 'telegraf'
 import moment from 'moment-timezone'
 import { isAdmin } from '../utils/adminCheck.js'
 import { buildPaymentUrl, ALLPAY_LINK_BASE, ALLPAY_LINK_PRACTICE } from '../integrations/allpay.js'
-import { createMessage, updateMessage, getMessages, getMessageById, getClubMembers, clearSendFlag } from '../integrations/fillout.js'
+import { createMessage, updateMessage, getMessages, getMessageById, getClubMembers, clearSendFlag, CLUB_FIELD_TELEGRAM_ID, CLUB_FIELD_TARIFF } from '../integrations/fillout.js'
 import { hasActiveWebinarAccess, mdToHtml, slotSendTime } from '../utils/scheduler.js'
 
 const DEFAULT_PRICE_BASE     = 150
@@ -41,9 +41,9 @@ function parseDateOnly(text) {
 // Фильтрует участников по тарифу — та же логика что в scheduler
 function filterTargets(members, tariff) {
   return members.filter(m => {
-    const tg = m.fields['telegram_id']
+    const tg = m.fields[CLUB_FIELD_TELEGRAM_ID]
     if (!tg) return false
-    const t = m.fields['Тариф']
+    const t = m.fields[CLUB_FIELD_TARIFF]
     if (!tariff || tariff === 'ВСЕ' || tariff === 'КЛУБ') return true
     if (tariff === 'ПРЕМИУМ') return t !== 'БАЗА'
     if (tariff === 'БАЗА')     return t === 'БАЗА'     && !hasActiveWebinarAccess(m)
@@ -151,7 +151,7 @@ adminWebinarScene.on('text', async (ctx) => {
           const allMembers = await getClubMembers()
           const targets    = filterTargets(allMembers, 'ДОСТУП')
           for (const member of targets) {
-            const tgId = member.fields['telegram_id']
+            const tgId = member.fields[CLUB_FIELD_TELEGRAM_ID]
             if (!tgId) continue
             try {
               await ctx.telegram.sendMessage(
@@ -442,12 +442,12 @@ adminWebinarScene.action('webinar:confirm', async (ctx) => {
             const targets    = filterTargets(allMembers, tariff)
             for (const member of targets) {
               try {
-                await telegram.sendMessage(String(member.fields['telegram_id']), text, {
+                await telegram.sendMessage(String(member.fields[CLUB_FIELD_TELEGRAM_ID]), text, {
                   parse_mode: 'HTML',
                   link_preview_options: { is_disabled: true }
                 })
               } catch (e) {
-                console.error(`[Webinar] Send failed for ${member.fields['telegram_id']}:`, e.message)
+                console.error(`[Webinar] Send failed for ${member.fields[CLUB_FIELD_TELEGRAM_ID]}:`, e.message)
               }
             }
             console.log(`[Webinar] Sent ${tariff} @ ${label} → ${targets.length} members`)

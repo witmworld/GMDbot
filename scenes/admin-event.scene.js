@@ -1,7 +1,7 @@
 import { Scenes, Markup } from 'telegraf'
 import moment from 'moment-timezone'
 import { isAdmin } from '../utils/adminCheck.js'
-import { createMessage, updateMessage, getMessages, getMessageById, getClubMembers, clearSendFlag } from '../integrations/fillout.js'
+import { createMessage, updateMessage, getMessages, getMessageById, getClubMembers, clearSendFlag, CLUB_FIELD_TELEGRAM_ID } from '../integrations/fillout.js'
 import { mdToHtml, slotSendTime } from '../utils/scheduler.js'
 
 const MONTHS = {
@@ -25,7 +25,7 @@ function parseWebinarDate(text) {
 
 // Все участники с telegram_id (КЛУБ = все тарифы включая ТЕСТ)
 function filterTargets(members) {
-  return members.filter(m => !!m.fields['telegram_id'])
+  return members.filter(m => !!m.fields[CLUB_FIELD_TELEGRAM_ID])
 }
 
 export const adminEventScene = new Scenes.BaseScene('ADMIN_EVENT')
@@ -196,12 +196,12 @@ adminEventScene.action('event:confirm', async (ctx) => {
             const targets    = filterTargets(allMembers)
             for (const member of targets) {
               try {
-                await telegram.sendMessage(String(member.fields['telegram_id']), text, {
+                await telegram.sendMessage(String(member.fields[CLUB_FIELD_TELEGRAM_ID]), text, {
                   parse_mode: 'HTML',
                   link_preview_options: { is_disabled: true }
                 })
               } catch (e) {
-                console.error(`[Event] Send failed for ${member.fields['telegram_id']}:`, e.message)
+                console.error(`[Event] Send failed for ${member.fields[CLUB_FIELD_TELEGRAM_ID]}:`, e.message)
               }
             }
             console.log(`[Event] Sent КЛУБ @ ${label} → ${targets.length} members`)

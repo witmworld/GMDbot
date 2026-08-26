@@ -8,6 +8,16 @@ const CLUB_TABLE_ID    = 'tkDXcWAVooU'
 const MESSAGE_TABLE_ID = process.env.FILLOUT_MESSAGE_TABLE_ID || 't5tVm2Fai29'
 const COUPON_TABLE_ID  = 'tjQabu9e7em'
 
+// Имена полей таблицы CLUB — константами, а не строками в каждом месте.
+// Причина: 'Электронная почта ' с пробелом на конце — три места в кодовой
+// базе писали без пробела, то есть в поле, которое реально нигде не
+// читалось (подтверждено живым запросом к Fillout).
+export const CLUB_FIELD_EMAIL        = 'Электронная почта '
+export const CLUB_FIELD_PHONE        = 'Телефон'
+export const CLUB_FIELD_TELEGRAM_ID  = 'telegram_id'
+export const CLUB_FIELD_TARIFF       = 'Тариф'
+export const CLUB_FIELD_SUBSCRIPTION = 'Подписка'
+
 async function getRecords() {
   const url = `${BASE_URL}/bases/${FILLOUT_DATABASE_ID}/tables/${FILLOUT_TABLE_ID}/records/list`
 
@@ -92,8 +102,8 @@ export async function getMembersByTariffs(tariffs) {
   const seen = new Set()
   const result = []
   for (const m of allMembers) {
-    const tgId       = m.fields['telegram_id']
-    const userTariff = m.fields['Тариф']
+    const tgId       = m.fields[CLUB_FIELD_TELEGRAM_ID]
+    const userTariff = m.fields[CLUB_FIELD_TARIFF]
     if (!tgId) continue
     if (seen.has(tgId)) continue
 
@@ -112,12 +122,12 @@ export async function getMembersByTariffs(tariffs) {
 
 export async function getClubMember(telegramId) {
   const members = await getClubMembers()
-  return members.find(m => String(m.fields['telegram_id']) === String(telegramId))?.fields || null
+  return members.find(m => String(m.fields[CLUB_FIELD_TELEGRAM_ID]) === String(telegramId))?.fields || null
 }
 
 export async function getClubMemberRecord(telegramId) {
   const members = await getClubMembers()
-  return members.find(m => String(m.fields['telegram_id']) === String(telegramId)) || null
+  return members.find(m => String(m.fields[CLUB_FIELD_TELEGRAM_ID]) === String(telegramId)) || null
 }
 
 export async function setMemberAdminFlag(recordId) {
@@ -228,7 +238,7 @@ export async function createClubMember(fields) {
   })
   const data = await res.json()
   if (res.status >= 400) throw new Error(`createClubMember error: ${JSON.stringify(data)}`)
-  console.log('[Fillout] Created club member:', fields['telegram_id'] || fields['Имя, фамилия'])
+  console.log('[Fillout] Created club member:', fields[CLUB_FIELD_TELEGRAM_ID] || fields['Имя, фамилия'])
   return data
 }
 
@@ -276,19 +286,19 @@ export async function findClubMember({ telegramId, email, phone }) {
   const members = await getClubMembers()
 
   if (telegramId) {
-    const byTgId = members.find(m => String(m.fields['telegram_id']) === String(telegramId))
+    const byTgId = members.find(m => String(m.fields[CLUB_FIELD_TELEGRAM_ID]) === String(telegramId))
     if (byTgId) return byTgId
   }
 
   const emailNorm = normalizeEmail(email)
   if (emailNorm) {
-    const byEmail = members.find(m => normalizeEmail(m.fields['Электронная почта ']) === emailNorm)
+    const byEmail = members.find(m => normalizeEmail(m.fields[CLUB_FIELD_EMAIL]) === emailNorm)
     if (byEmail) return byEmail
   }
 
   const phoneNorm = normalizePhoneDigits(phone)
   if (phoneNorm) {
-    const byPhone = members.find(m => normalizePhoneDigits(m.fields['Телефон']) === phoneNorm)
+    const byPhone = members.find(m => normalizePhoneDigits(m.fields[CLUB_FIELD_PHONE]) === phoneNorm)
     if (byPhone) return byPhone
   }
 
@@ -304,10 +314,10 @@ export async function findOrCreateClubMember({ telegramId, email, phone, name, t
 
   if (existing) {
     const patch = {}
-    if (tariffTitle) patch['Тариф'] = tariffTitle
-    if (subscription) patch['Подписка'] = subscription
-    if (telegramId && !existing.fields['telegram_id']) {
-      patch['telegram_id'] = Number(telegramId)
+    if (tariffTitle) patch[CLUB_FIELD_TARIFF] = tariffTitle
+    if (subscription) patch[CLUB_FIELD_SUBSCRIPTION] = subscription
+    if (telegramId && !existing.fields[CLUB_FIELD_TELEGRAM_ID]) {
+      patch[CLUB_FIELD_TELEGRAM_ID] = Number(telegramId)
     }
     if (Object.keys(patch).length > 0) {
       await updateClubMemberFields(existing.id, patch)
@@ -317,11 +327,11 @@ export async function findOrCreateClubMember({ telegramId, email, phone, name, t
 
   return await createClubMember({
     'Имя, фамилия': name || '',
-    'Телефон': phone || '',
-    'Электронная почта ': email || '',
-    'Тариф': tariffTitle || '',
-    'Подписка': subscription || '',
-    'telegram_id': telegramId ? Number(telegramId) : null,
+    [CLUB_FIELD_PHONE]: phone || '',
+    [CLUB_FIELD_EMAIL]: email || '',
+    [CLUB_FIELD_TARIFF]: tariffTitle || '',
+    [CLUB_FIELD_SUBSCRIPTION]: subscription || '',
+    [CLUB_FIELD_TELEGRAM_ID]: telegramId ? Number(telegramId) : null,
   })
 }
 
@@ -358,9 +368,9 @@ export async function findCouponByCode(code) {
 export async function updateClubMemberTelegram(recordId, telegramUsername, telegramId, email = null) {
   const url = `${BASE_URL}/bases/${FILLOUT_DATABASE_ID}/tables/${CLUB_TABLE_ID}/records/${recordId}`
   // Fillout API requires { "record": { ...fields } }, NOT { "fields": { ... } }
-  const record = { telegram_id: Number(telegramId) }
+  const record = { [CLUB_FIELD_TELEGRAM_ID]: Number(telegramId) }
   if (telegramUsername) record['Ник в ТГ'] = `@${telegramUsername}`
-  if (email) record['Электронная почта'] = email
+  if (email) record[CLUB_FIELD_EMAIL] = email
 
   const body = JSON.stringify({ record })
   console.log('[Fillout] PATCH', url)

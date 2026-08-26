@@ -1,5 +1,5 @@
 import { Scenes, Markup } from 'telegraf'
-import { getMembersByTariffs } from '../integrations/fillout.js'
+import { getMembersByTariffs, CLUB_FIELD_TELEGRAM_ID } from '../integrations/fillout.js'
 
 export const broadcastSelectScene = new Scenes.BaseScene('BROADCAST_SELECT')
 
@@ -91,13 +91,13 @@ broadcastSelectScene.action('broadcast:send', async (ctx) => {
     for (const member of members) {
       try {
         await ctx.telegram.sendMessage(
-          String(member.fields['telegram_id']),
+          String(member.fields[CLUB_FIELD_TELEGRAM_ID]),
           msg.text,
           msg.extra || {}
         )
         sentCount++
       } catch (e) {
-        console.error('[Broadcast] sendMessage failed for', member.fields['telegram_id'], e.message)
+        console.error('[Broadcast] sendMessage failed for', member.fields[CLUB_FIELD_TELEGRAM_ID], e.message)
       }
     }
   }

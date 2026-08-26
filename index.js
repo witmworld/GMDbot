@@ -24,7 +24,7 @@ import { menuScene } from './scenes/menu.scene.js'
 import { subscribeScene } from './scenes/subscribe.scene.js'
 import { scanGroupMembers } from './utils/group-scanner.js'
 import { startScheduler, hasActiveWebinarAccess, forceSendPending } from './utils/scheduler.js'
-import { getTariffs, getClubMembers, getClubMember, createClubMember, getClubMemberRecord, setMemberAdminFlag, updateClubMemberFields, getMessages } from './integrations/fillout.js'
+import { getTariffs, getClubMembers, getClubMember, createClubMember, getClubMemberRecord, setMemberAdminFlag, updateClubMemberFields, getMessages, CLUB_FIELD_EMAIL, CLUB_FIELD_TELEGRAM_ID, CLUB_FIELD_TARIFF } from './integrations/fillout.js'
 import { createReceipt } from './integrations/greeninvoice.js'
 import { toIsoDate, processTariffPayment } from './utils/tariffPayment.js'
 
@@ -255,7 +255,7 @@ try {
             const newRecord = await createClubMember({
               'Имя, фамилия': `${user.first_name || ''} ${user.last_name || ''}`.trim(),
               'Ник в ТГ': user.username ? `@${user.username}` : (user.first_name || ''),
-              'telegram_id': Number(user.id),
+              [CLUB_FIELD_TELEGRAM_ID]: Number(user.id),
               'Добавился в чат': 'да',
             })
             if (newRecord?.record?.id) {
@@ -368,7 +368,7 @@ try {
             await createClubMember({
               'Имя, фамилия': name,
               'Ник в ТГ': member.username ? `@${member.username}` : (member.first_name || ''),
-              'telegram_id': Number(member.user_id),
+              [CLUB_FIELD_TELEGRAM_ID]: Number(member.user_id),
               'Добавился в чат': 'да',
             })
             console.log('✅ Created Fillout record for:', name)
@@ -430,25 +430,25 @@ try {
 
       const counts = {}
       for (const m of members) {
-        const t = m.fields['Тариф'] ?? '(пусто)'
+        const t = m.fields[CLUB_FIELD_TARIFF] ?? '(пусто)'
         counts[t] = (counts[t] || 0) + 1
       }
 
       const sample = members
         .filter(m => {
-          const t = String(m.fields['Тариф'] ?? '')
+          const t = String(m.fields[CLUB_FIELD_TARIFF] ?? '')
           return t.includes('АЗА') || t.includes('РАКТ')
         })
         .slice(0, 5)
         .map(m => ({
-          Тариф: m.fields['Тариф'],
-          telegram_id: m.fields['telegram_id'],
+          Тариф: m.fields[CLUB_FIELD_TARIFF],
+          telegram_id: m.fields[CLUB_FIELD_TELEGRAM_ID],
           Вебинар: m.fields['Вебинар'] ?? null,
           hasAccess: hasActiveWebinarAccess(m)
         }))
 
-      const baseNoAccess  = members.filter(m => m.fields['Тариф'] === 'БАЗА'     && m.fields['telegram_id'] && !hasActiveWebinarAccess(m)).length
-      const practNoAccess = members.filter(m => m.fields['Тариф'] === 'ПРАКТИКА' && m.fields['telegram_id'] && !hasActiveWebinarAccess(m)).length
+      const baseNoAccess  = members.filter(m => m.fields[CLUB_FIELD_TARIFF] === 'БАЗА'     && m.fields[CLUB_FIELD_TELEGRAM_ID] && !hasActiveWebinarAccess(m)).length
+      const practNoAccess = members.filter(m => m.fields[CLUB_FIELD_TARIFF] === 'ПРАКТИКА' && m.fields[CLUB_FIELD_TELEGRAM_ID] && !hasActiveWebinarAccess(m)).length
 
       const result = { total: members.length, byTariff: counts, baseNoAccess, practNoAccess, sample }
       console.log('[debug-members]', JSON.stringify(result, null, 2))
@@ -543,13 +543,13 @@ try {
         try {
           const allMembers = await getClubMembers()
           const memberRecord = allMembers.find(m =>
-            (m.fields['Электронная почта '] || '').toLowerCase() === body.client_email.toLowerCase()
+            (m.fields[CLUB_FIELD_EMAIL] || '').toLowerCase() === body.client_email.toLowerCase()
           )
           if (memberRecord) {
             console.log(`[Webhook] Found member by email: ${body.client_email}, updating Вебинар field`)
             await updateClubMemberFields(memberRecord.id, { 'Вебинар': toIsoDate(new Date()) })
 
-            const tgId = memberRecord.fields['telegram_id']
+            const tgId = memberRecord.fields[CLUB_FIELD_TELEGRAM_ID]
             if (tgId) {
               const messages = await getMessages()
               const activeWebinar = messages.find(m => m.fields['Active'] === true && m.fields['ZOOM_URL'])
