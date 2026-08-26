@@ -2,8 +2,8 @@ import { Scenes, Markup } from 'telegraf'
 import { handleBack } from './nav.js'
 import { createPayment } from '../integrations/allpay.js'
 import { updateLead } from '../integrations/bitrix.js'
-import { TARIFFS_DATA } from '../content/tariffs.data.js'
 import { handleGlobalCallbacks } from '../ui/handlers.js'
+import { getTariffs } from '../integrations/fillout.js'
 
 export const paymentScene = new Scenes.BaseScene('PAYMENT')
 
@@ -11,25 +11,26 @@ function generateOrderId(ctx) {
   return `${ctx.from.id}_${Date.now()}`
 }
 
-function getAmount(tariffCode, period) {
-  const tariff = TARIFFS_DATA[tariffCode]
-  if (!tariff) return null
-  return period === 'year' ? tariff.price_year : tariff.price_month
+// Локальная копия, а не импорт из confirm.scene.js — держим этот коммит
+// независимым от файла, который целиком меняется в купонном коммите.
+async function findTariffAmount(tariffName, term) {
+  const tariffs = await getTariffs()
+  const match = tariffs.find(t => t.name === tariffName && t.term === term)
+  return match?.amount ?? null
 }
 
 paymentScene.enter(async (ctx) => {
-  const tariffCode = ctx.session.tariff
+  const tariffName = ctx.session.tariffName
   const period = ctx.session.period
-  const tariff = TARIFFS_DATA[tariffCode]
 
-  if (!tariff) {
+  const amount = await findTariffAmount(tariffName, period)
+
+  if (amount == null) {
     await ctx.reply('Тариф не найден. Попробуй выбрать заново.')
     return ctx.scene.enter('TARIFF')
   }
 
-  const amount = getAmount(tariffCode, period)
   const orderId = generateOrderId(ctx)
-  const periodLabel = period === 'year' ? 'год' : 'месяц'
 
   ctx.session.orderId = orderId
 
@@ -41,7 +42,7 @@ paymentScene.enter(async (ctx) => {
     const result = await createPayment({
       orderId,
       amount,
-      description: `${tariff.title} — ${periodLabel}`,
+      description: `${tariffName} — ${period}`,
       customerPhone: ctx.session.phone,
       customerEmail: ctx.session.email
     })
@@ -57,8 +58,8 @@ paymentScene.enter(async (ctx) => {
 
     await ctx.reply(
       `Заказ создан!\n\n` +
-      `Тариф: ${tariff.title}\n` +
-      `Период: ${periodLabel}\n` +
+      `Тариф: ${tariffName}\n` +
+      `Период: ${period}\n` +
       `Сумма: ${amount} ₪\n\n` +
       `Нажми кнопку ниже для оплаты 👇`,
       Markup.inlineKeyboard([

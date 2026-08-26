@@ -47,7 +47,7 @@ export async function updateLead(id, ctx) {
 Username: @${ctx.from.username || '—'}
 Telegram ID: ${ctx.from.id}
 
-Тариф: ${ctx.session.tariff || '—'}
+Тариф: ${ctx.session.tariffName || '—'}
 Период: ${ctx.session.period || '—'}
       `.trim()
     }
@@ -78,7 +78,7 @@ async function addLead(ctx, phoneDigits) {
 Username: @${ctx.from.username || '—'}
 Telegram ID: ${ctx.from.id}
 
-Тариф: ${ctx.session.tariff || '—'}
+Тариф: ${ctx.session.tariffName || '—'}
 Период: ${ctx.session.period || '—'}
       `.trim()
     }
