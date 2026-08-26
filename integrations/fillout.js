@@ -6,6 +6,7 @@ const FILLOUT_DATABASE_ID = process.env.FILLOUT_DATABASE_ID
 const FILLOUT_TABLE_ID = process.env.FILLOUT_TABLE_ID
 const CLUB_TABLE_ID    = 'tkDXcWAVooU'
 const MESSAGE_TABLE_ID = process.env.FILLOUT_MESSAGE_TABLE_ID || 't5tVm2Fai29'
+const COUPON_TABLE_ID  = 'tjQabu9e7em'
 
 async function getRecords() {
   const url = `${BASE_URL}/bases/${FILLOUT_DATABASE_ID}/tables/${FILLOUT_TABLE_ID}/records/list`
@@ -244,6 +245,36 @@ export async function updateClubMemberFields(recordId, fields) {
   const data = await res.json()
   if (res.status >= 400) throw new Error(`updateClubMemberFields error: ${JSON.stringify(data)}`)
   return data
+}
+
+export async function createCoupon(fields) {
+  const url = `${BASE_URL}/bases/${FILLOUT_DATABASE_ID}/tables/${COUPON_TABLE_ID}/records`
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${FILLOUT_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ record: fields }),
+  })
+  const data = await res.json()
+  if (res.status >= 400) throw new Error(`createCoupon error: ${JSON.stringify(data)}`)
+  return data
+}
+
+export async function findCouponByCode(code) {
+  const url = `${BASE_URL}/bases/${FILLOUT_DATABASE_ID}/tables/${COUPON_TABLE_ID}/records/list`
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${FILLOUT_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({}),
+  })
+  const data = await res.json()
+  if (!data.records) throw new Error(`findCouponByCode error: ${JSON.stringify(data)}`)
+  return data.records.find(r => r.fields['Код'] === code) || null
 }
 
 export async function updateClubMemberTelegram(recordId, telegramUsername, telegramId, email = null) {

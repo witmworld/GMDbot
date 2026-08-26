@@ -19,6 +19,7 @@ import { broadcastSelectScene } from './scenes/broadcast-select.scene.js'
 import { adminCancelReceiptsScene } from './scenes/admin-cancel-receipts.scene.js'
 import { adminWebinarScene } from './scenes/admin-webinar.scene.js'
 import { adminEventScene } from './scenes/admin-event.scene.js'
+import { adminCouponScene } from './scenes/admin-coupon.scene.js'
 import { menuScene } from './scenes/menu.scene.js'
 import { subscribeScene } from './scenes/subscribe.scene.js'
 import { scanGroupMembers } from './utils/group-scanner.js'
@@ -210,6 +211,7 @@ try {
     adminCancelReceiptsScene,
     adminWebinarScene,
     adminEventScene,
+    adminCouponScene,
     menuScene,
     subscribeScene
   ])

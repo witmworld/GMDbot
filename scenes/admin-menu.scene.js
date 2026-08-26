@@ -23,6 +23,7 @@ adminMenuScene.enter(async (ctx) => {
         [Markup.button.callback('📹 Создать вебинар', 'admin:webinar')],
         [Markup.button.callback('🔗 Добавить Zoom URL', 'admin:webinar_zoom')],
         [Markup.button.callback('📅 Создать мероприятие', 'admin:event')],
+        [Markup.button.callback('🎟 Создать купон', 'admin:coupon')],
         [Markup.button.callback('⬅️ Главное меню', 'admin:exit')]
       ])
     }
@@ -64,6 +65,11 @@ adminMenuScene.action('admin:webinar_zoom', async (ctx) => {
   await ctx.answerCbQuery()
   ctx.session.webinarZoomOnly = true
   return ctx.scene.enter('ADMIN_WEBINAR')
+})
+
+adminMenuScene.action('admin:coupon', async (ctx) => {
+  await ctx.answerCbQuery()
+  return ctx.scene.enter('ADMIN_COUPON')
 })
 
 adminMenuScene.action('admin:exit', async (ctx) => {
