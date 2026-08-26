@@ -27,6 +27,16 @@ import { getTariffs, getClubMembers, getClubMember, createClubMember, getClubMem
 import { findLeadByOrderId, updateLeadPaymentStatus, updateLeadFields } from './integrations/bitrix.js'
 import { createReceipt } from './integrations/greeninvoice.js'
 
+// Fillout приводит любую входящую дату в date-поле к YYYY-MM-DD, но как он
+// разбирает dd/mm/yyyy при дне ≤ 12 — не проверено (день/месяц можно спутать
+// молча). Пишем сразу в ISO, чтобы не зависеть от парсинга на стороне Fillout.
+function toIsoDate(date) {
+  const dd   = String(date.getDate()).padStart(2, '0')
+  const mm   = String(date.getMonth() + 1).padStart(2, '0')
+  const yyyy = date.getFullYear()
+  return `${yyyy}-${mm}-${dd}`
+}
+
 console.log('[ENV CHECK] ALLPAY_LINK_BASE:', process.env.ALLPAY_LINK_BASE || 'MISSING')
 console.log('[ENV CHECK] ALLPAY_LINK_PRACTICE:', process.env.ALLPAY_LINK_PRACTICE || 'MISSING')
 console.log('[ENV CHECK] keys with ALLPAY:', JSON.stringify(Object.keys(process.env).filter(k => k.toUpperCase().includes('ALLPAY'))))
@@ -545,11 +555,7 @@ try {
           )
           if (memberRecord) {
             console.log(`[Webhook] Found member by email: ${body.client_email}, updating Вебинар field`)
-            const today = new Date()
-            const dd   = String(today.getDate()).padStart(2, '0')
-            const mm   = String(today.getMonth() + 1).padStart(2, '0')
-            const yyyy = today.getFullYear()
-            await updateClubMemberFields(memberRecord.id, { 'Вебинар': `${dd}/${mm}/${yyyy}` })
+            await updateClubMemberFields(memberRecord.id, { 'Вебинар': toIsoDate(new Date()) })
 
             const tgId = memberRecord.fields['telegram_id']
             if (tgId) {
@@ -642,11 +648,7 @@ try {
           try {
             const memberRecord = await getClubMemberRecord(telegramId)
             if (memberRecord) {
-              const today = new Date()
-              const dd = String(today.getDate()).padStart(2, '0')
-              const mm = String(today.getMonth() + 1).padStart(2, '0')
-              const yyyy = today.getFullYear()
-              const dateStr = `${dd}/${mm}/${yyyy}`
+              const dateStr = toIsoDate(new Date())
               await updateClubMemberFields(memberRecord.id, { 'Вебинар': dateStr })
               console.log(`[Webhook] Updated Вебинар field for telegramId: ${telegramId} → ${dateStr}`)
             }
