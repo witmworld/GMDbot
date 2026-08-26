@@ -247,6 +247,84 @@ export async function updateClubMemberFields(recordId, fields) {
   return data
 }
 
+function normalizeEmail(email) {
+  return String(email || '').trim().toLowerCase()
+}
+
+// Тот же алгоритм, что уже проверен в subscribe.scene.js (normalizePhone) —
+// приводит и локальный формат (05...), и международный (+972.../972...)
+// к цифровому коду страны, как реально хранится в CLUB (см. живой пример:
+// "972584434466"). Простое "убрать всё кроме цифр" не совпадёт для 05... —
+// он в базе не встречается, только 972-префикс.
+function normalizePhoneDigits(phone) {
+  let digits = String(phone || '').replace(/\D/g, '')
+  if (!digits) return ''
+  if (digits.startsWith('0')) {
+    digits = '972' + digits.slice(1)
+  } else if (digits.length === 9 && digits.startsWith('5')) {
+    digits = '972' + digits
+  }
+  if (digits.startsWith('9720')) {
+    digits = '972' + digits.slice(4)
+  }
+  return digits
+}
+
+// Поиск участника CLUB: telegram_id → email → телефон (в этом порядке,
+// каждый следующий только если предыдущий не дал результата).
+export async function findClubMember({ telegramId, email, phone }) {
+  const members = await getClubMembers()
+
+  if (telegramId) {
+    const byTgId = members.find(m => String(m.fields['telegram_id']) === String(telegramId))
+    if (byTgId) return byTgId
+  }
+
+  const emailNorm = normalizeEmail(email)
+  if (emailNorm) {
+    const byEmail = members.find(m => normalizeEmail(m.fields['Электронная почта ']) === emailNorm)
+    if (byEmail) return byEmail
+  }
+
+  const phoneNorm = normalizePhoneDigits(phone)
+  if (phoneNorm) {
+    const byPhone = members.find(m => normalizePhoneDigits(m.fields['Телефон']) === phoneNorm)
+    if (byPhone) return byPhone
+  }
+
+  return null
+}
+
+// Находит участника (telegram_id → email → телефон) или создаёт нового.
+// Если нашли по email/телефону, а telegram_id в записи пуст — дозаполняет
+// его (чинит верификацию для тех, кого заводили вручную). Тариф/Подписка
+// обновляются у найденной записи так же, как раньше делал webhook напрямую.
+export async function findOrCreateClubMember({ telegramId, email, phone, name, tariffTitle, subscription }) {
+  const existing = await findClubMember({ telegramId, email, phone })
+
+  if (existing) {
+    const patch = {}
+    if (tariffTitle) patch['Тариф'] = tariffTitle
+    if (subscription) patch['Подписка'] = subscription
+    if (telegramId && !existing.fields['telegram_id']) {
+      patch['telegram_id'] = Number(telegramId)
+    }
+    if (Object.keys(patch).length > 0) {
+      await updateClubMemberFields(existing.id, patch)
+    }
+    return existing
+  }
+
+  return await createClubMember({
+    'Имя, фамилия': name || '',
+    'Телефон': phone || '',
+    'Электронная почта ': email || '',
+    'Тариф': tariffTitle || '',
+    'Подписка': subscription || '',
+    'telegram_id': telegramId ? Number(telegramId) : null,
+  })
+}
+
 export async function createCoupon(fields) {
   const url = `${BASE_URL}/bases/${FILLOUT_DATABASE_ID}/tables/${COUPON_TABLE_ID}/records`
   const res = await fetch(url, {

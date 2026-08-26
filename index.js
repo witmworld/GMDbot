@@ -24,7 +24,7 @@ import { menuScene } from './scenes/menu.scene.js'
 import { subscribeScene } from './scenes/subscribe.scene.js'
 import { scanGroupMembers } from './utils/group-scanner.js'
 import { startScheduler, hasActiveWebinarAccess, forceSendPending } from './utils/scheduler.js'
-import { getTariffs, getClubMembers, getClubMember, createClubMember, getClubMemberRecord, setMemberAdminFlag, updateClubMemberFields, getMessages } from './integrations/fillout.js'
+import { getTariffs, getClubMembers, getClubMember, createClubMember, getClubMemberRecord, findOrCreateClubMember, setMemberAdminFlag, updateClubMemberFields, getMessages } from './integrations/fillout.js'
 import { findLeadByOrderId, updateLeadPaymentStatus, updateLeadFields } from './integrations/bitrix.js'
 import { createReceipt } from './integrations/greeninvoice.js'
 
@@ -579,6 +579,27 @@ try {
     } else if (body.status === '1' && body.order_id) {
       const telegramId = body.add_field || body.order_id.split('_')[0]
       try {
+        // Участник CLUB — ДО Bitrix, чтобы при сбое Bitrix участник уже был записан.
+        if (body.name && telegramId && !/доступ|вебинар/i.test(body.name)) {
+          try {
+            const nameParts = body.name.split(' — ')
+            const tariffTitle = nameParts[0] || ''
+            const subscription = nameParts[1] || ''
+
+            const clubMember = await findOrCreateClubMember({
+              telegramId,
+              email: body.client_email,
+              phone: body.client_phone,
+              name: body.client_name || '',
+              tariffTitle,
+              subscription,
+            })
+            console.log(`[Webhook] CLUB member ready for telegramId ${telegramId}: ${clubMember.id}`)
+          } catch (err) {
+            console.error(`[Webhook] Club member update failed for telegramId ${telegramId}:`, err.message)
+          }
+        }
+
         const lead = await findLeadByOrderId(body.order_id)
         if (lead?.ID) {
           await updateLeadPaymentStatus(lead.ID, body)
@@ -607,42 +628,6 @@ try {
           }
         } catch (err) {
           console.error('❌ Ошибка создания квитанции GreenInvoice:', err)
-        }
-
-        if (body.name && telegramId && !/доступ|вебинар/i.test(body.name)) {
-          try {
-            const nameParts = body.name.split(' — ')
-            const tariffTitle = nameParts[0] || ''
-            const subscription = nameParts[1] || ''
-
-            let tgUsername = ''
-            try {
-              const chat = await bot.telegram.getChat(telegramId)
-              tgUsername = chat.username ? `@${chat.username}` : (chat.first_name || '')
-            } catch {}
-
-            const existingMember = await getClubMemberRecord(telegramId)
-            if (existingMember) {
-              await updateClubMemberFields(existingMember.id, {
-                'Тариф': tariffTitle,
-                'Подписка': subscription,
-              })
-              console.log(`[Webhook] Updated club member tariff/subscription for telegramId: ${telegramId}`)
-            } else {
-              await createClubMember({
-                'Имя, фамилия': body.client_name || '',
-                'Телефон': body.client_phone || '',
-                'Электронная почта': body.client_email || '',
-                'Тариф': tariffTitle,
-                'Подписка': subscription,
-                'telegram_id': Number(telegramId),
-                'Ник в ТГ': tgUsername,
-              })
-              console.log(`[Webhook] Created club member for telegramId: ${telegramId}`)
-            }
-          } catch (err) {
-            console.error(`[Webhook] Club member update failed for telegramId ${telegramId}:`, err.message)
-          }
         }
 
         if (/доступ|вебинар/i.test(body.name || '') && telegramId) {
