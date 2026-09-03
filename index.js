@@ -524,53 +524,63 @@ try {
     const body = req.body || {}
     console.log(`Payment webhook received: order_id=${body.order_id || 'none'}, status=${body.status || 'none'}`)
 
-    if (body.status === '1' && !body.order_id) {
-      try {
-        const receipt = await createReceipt({
-          clientName: body.client_name || '',
-          clientEmail: body.client_email || '',
-          clientPhone: body.client_phone || '',
-          amount: Number(body.amount) || 0,
-          description: 'תרומה'
-        })
-        const receiptUrl = receipt.receipt_url || receipt.url || receipt.shareUrl || ''
-        console.log(`Receipt created for external payment: ${body.client_name}, ${body.amount}₪, receipt: ${receiptUrl}`)
-      } catch (err) {
-        console.error('❌ Ошибка создания квитанции (external):', err)
-      }
-
-      if (/доступ|вебинар/i.test(body.name || '') && body.client_email) {
-        try {
-          const allMembers = await getClubMembers()
-          const memberRecord = allMembers.find(m =>
-            (m.fields[CLUB_FIELD_EMAIL] || '').toLowerCase() === body.client_email.toLowerCase()
-          )
-          if (memberRecord) {
-            console.log(`[Webhook] Found member by email: ${body.client_email}, updating Вебинар field`)
-            await updateClubMemberFields(memberRecord.id, { 'Вебинар': toIsoDate(new Date()) })
-
-            const tgId = memberRecord.fields[CLUB_FIELD_TELEGRAM_ID]
-            if (tgId) {
-              const messages = await getMessages()
-              const activeWebinar = messages.find(m => m.fields['Active'] === true && m.fields['ZOOM_URL'])
-              const zoomUrl = activeWebinar?.fields['ZOOM_URL'] || null
-              const webinarMsg = zoomUrl
-                ? `✅ Оплата получена!\nСсылка на вебинар: ${zoomUrl}`
-                : '✅ Оплата получена!\nСсылка на Zoom придёт вам в боте незадолго до начала вебинара.'
-              await bot.telegram.sendMessage(String(tgId), webinarMsg)
-            }
-          } else {
-            console.log(`[Webhook] Member not found by email: ${body.client_email}`)
-          }
-        } catch (err) {
-          console.error('[Webhook] Webinar update by email failed:', err.message)
-        }
-      }
-    } else if (body.status === '1' && body.order_id) {
-      await processTariffPayment(bot, body)
-    }
-
+    // Отвечаем немедленно, до обработки. AllPay повторяет доставку до 10 раз,
+    // если не получает 200 быстро — обработка ниже (Fillout/GreenInvoice/Telegram)
+    // не укладывается в их таймаут, из-за чего один и тот же платёж обрабатывался
+    // повторно и плодил дублирующие кабалот. Тот же баг и то же лечение уже было
+    // на Telegram-вебхуке в апреле.
     res.sendStatus(200)
+
+    try {
+      if (body.status === '1' && !body.order_id) {
+        try {
+          const receipt = await createReceipt({
+            clientName: body.client_name || '',
+            clientEmail: body.client_email || '',
+            clientPhone: body.client_phone || '',
+            amount: Number(body.amount) || 0,
+            description: 'תרומה'
+          })
+          const receiptUrl = receipt.receipt_url || receipt.url || receipt.shareUrl || ''
+          console.log(`Receipt created for external payment: ${body.client_name}, ${body.amount}₪, receipt: ${receiptUrl}`)
+        } catch (err) {
+          console.error('❌ Ошибка создания квитанции (external):', err)
+        }
+
+        if (/доступ|вебинар/i.test(body.name || '') && body.client_email) {
+          try {
+            const allMembers = await getClubMembers()
+            const memberRecord = allMembers.find(m =>
+              (m.fields[CLUB_FIELD_EMAIL] || '').toLowerCase() === body.client_email.toLowerCase()
+            )
+            if (memberRecord) {
+              console.log(`[Webhook] Found member by email: ${body.client_email}, updating Вебинар field`)
+              await updateClubMemberFields(memberRecord.id, { 'Вебинар': toIsoDate(new Date()) })
+
+              const tgId = memberRecord.fields[CLUB_FIELD_TELEGRAM_ID]
+              if (tgId) {
+                const messages = await getMessages()
+                const activeWebinar = messages.find(m => m.fields['Active'] === true && m.fields['ZOOM_URL'])
+                const zoomUrl = activeWebinar?.fields['ZOOM_URL'] || null
+                const webinarMsg = zoomUrl
+                  ? `✅ Оплата получена!\nСсылка на вебинар: ${zoomUrl}`
+                  : '✅ Оплата получена!\nСсылка на Zoom придёт вам в боте незадолго до начала вебинара.'
+                await bot.telegram.sendMessage(String(tgId), webinarMsg)
+              }
+            } else {
+              console.log(`[Webhook] Member not found by email: ${body.client_email}`)
+            }
+          } catch (err) {
+            console.error('[Webhook] Webinar update by email failed:', err.message)
+          }
+        }
+      } else if (body.status === '1' && body.order_id) {
+        await processTariffPayment(bot, body)
+      }
+    } catch (err) {
+      // Ответ клиенту уже ушёл — без этого лога падение здесь никто не увидит.
+      console.error('[Webhook] Необработанная ошибка обработки /payment/webhook после ответа 200:', err)
+    }
   })
 
   const PORT = process.env.PORT || 3000
