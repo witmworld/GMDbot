@@ -9,7 +9,7 @@ import {
   updateLeadPaymentStatus,
   updateLeadFields,
 } from '../integrations/bitrix.js'
-import { createReceipt } from '../integrations/greeninvoice.js'
+import { createReceipt, extractReceiptUrl, extractReceiptNumber } from '../integrations/greeninvoice.js'
 
 // Живёт отдельно от index.js, чтобы payment.scene.js могло вызвать
 // processTariffPayment напрямую (100%-скидка купоном, минуя AllPay) без
@@ -96,7 +96,8 @@ export async function processTariffPayment(bot, body) {
           orderId: body.order_id
         })
 
-        const receiptUrl = receipt.receipt_url || receipt.url || receipt.shareUrl || ''
+        const receiptUrl = extractReceiptUrl(receipt)
+        console.log(`[Webhook] Кабала создана: order_id=${body.order_id}, № ${extractReceiptNumber(receipt) || '?'}, ссылка: ${receiptUrl || '(нет в ответе)'}`)
         if (receiptUrl && lead?.ID) {
           await updateLeadFields(lead.ID, { UF_CRM_1734183234: receiptUrl })
         }

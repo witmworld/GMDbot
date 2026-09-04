@@ -26,7 +26,7 @@ import { scanGroupMembers } from './utils/group-scanner.js'
 import { startScheduler, hasActiveWebinarAccess, forceSendPending } from './utils/scheduler.js'
 import { getTariffs, getClubMembers, getClubMember, createClubMember, getClubMemberRecord, setMemberAdminFlag, updateClubMemberFields, getMessages, CLUB_FIELD_EMAIL, CLUB_FIELD_TELEGRAM_ID, CLUB_FIELD_TARIFF } from './integrations/fillout.js'
 import { isWebhookProcessed, markWebhookProcessed } from './utils/webhookDedup.js'
-import { createReceipt } from './integrations/greeninvoice.js'
+import { createReceipt, extractReceiptUrl, extractReceiptNumber } from './integrations/greeninvoice.js'
 import { toIsoDate, processTariffPayment } from './utils/tariffPayment.js'
 
 console.log('[ENV CHECK] ALLPAY_LINK_BASE:', process.env.ALLPAY_LINK_BASE || 'MISSING')
@@ -547,8 +547,9 @@ try {
             amount: Number(body.amount) || 0,
             description: 'תרומה'
           })
-          const receiptUrl = receipt.receipt_url || receipt.url || receipt.shareUrl || ''
-          console.log(`Receipt created for external payment: ${body.client_name}, ${body.amount}₪, receipt: ${receiptUrl}`)
+          const receiptUrl = extractReceiptUrl(receipt)
+          const receiptNumber = extractReceiptNumber(receipt)
+          console.log(`Receipt created for external payment: ${body.client_name}, ${body.amount}₪, № ${receiptNumber || '?'}, ссылка: ${receiptUrl || '(нет в ответе)'}`)
           markWebhookProcessed(body.sign)
         } catch (err) {
           console.error('❌ Ошибка создания квитанции (external):', err)

@@ -1,5 +1,23 @@
 import fetch from 'node-fetch'
 
+// Официально подтверждено (developers.morning.co/docs/openapi.bundled.json,
+// схема CreateDocumentResponse для POST /documents — Add Document): ответ
+// всегда содержит объект url: { origin, he, en }, поле url обязательно.
+// origin — исходная ссылка на документ; en присутствует, только если lang
+// был 'en'. Полей receipt_url и shareUrl в схеме нет и не было — старый код
+// (receipt.receipt_url || receipt.url || receipt.shareUrl) обращался к двум
+// несуществующим полям и в итоге получал сам объект url, откуда и был
+// receipt: [object Object] в логах.
+export function extractReceiptUrl(receipt) {
+  const url = receipt?.url
+  if (!url) return ''
+  return url.origin || url.he || url.en || ''
+}
+
+export function extractReceiptNumber(receipt) {
+  return receipt?.number ?? ''
+}
+
 const BASE_URL = 'https://api.greeninvoice.co.il/api/v1'
 const GREENINVOICE_ID = process.env.GREENINVOICE_ID
 const GREENINVOICE_SECRET = process.env.GREENINVOICE_SECRET
