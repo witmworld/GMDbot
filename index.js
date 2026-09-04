@@ -25,6 +25,7 @@ import { subscribeScene } from './scenes/subscribe.scene.js'
 import { scanGroupMembers } from './utils/group-scanner.js'
 import { startScheduler, hasActiveWebinarAccess, forceSendPending } from './utils/scheduler.js'
 import { getTariffs, getClubMembers, getClubMember, createClubMember, getClubMemberRecord, setMemberAdminFlag, updateClubMemberFields, getMessages, CLUB_FIELD_EMAIL, CLUB_FIELD_TELEGRAM_ID, CLUB_FIELD_TARIFF } from './integrations/fillout.js'
+import { isWebhookProcessed, markWebhookProcessed } from './utils/webhookDedup.js'
 import { createReceipt } from './integrations/greeninvoice.js'
 import { toIsoDate, processTariffPayment } from './utils/tariffPayment.js'
 
@@ -532,6 +533,11 @@ try {
     res.sendStatus(200)
 
     try {
+      if (body.status === '1' && body.sign && isWebhookProcessed(body.sign)) {
+        console.log(`[Webhook] повтор вебхука — sign уже обработан менее суток назад, кабала не выписывается повторно. order_id=${body.order_id || 'none'}`)
+        return
+      }
+
       if (body.status === '1' && !body.order_id) {
         try {
           const receipt = await createReceipt({
@@ -543,6 +549,7 @@ try {
           })
           const receiptUrl = receipt.receipt_url || receipt.url || receipt.shareUrl || ''
           console.log(`Receipt created for external payment: ${body.client_name}, ${body.amount}₪, receipt: ${receiptUrl}`)
+          markWebhookProcessed(body.sign)
         } catch (err) {
           console.error('❌ Ошибка создания квитанции (external):', err)
         }
@@ -576,6 +583,7 @@ try {
         }
       } else if (body.status === '1' && body.order_id) {
         await processTariffPayment(bot, body)
+        markWebhookProcessed(body.sign)
       }
     } catch (err) {
       // Ответ клиенту уже ушёл — без этого лога падение здесь никто не увидит.
