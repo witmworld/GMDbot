@@ -19,6 +19,7 @@ export function extractReceiptNumber(receipt) {
 }
 
 const BASE_URL = 'https://api.greeninvoice.co.il/api/v1'
+const TOKEN_URL = 'https://api.morning.co/idp/v1/oauth/token'
 const GREENINVOICE_ID = process.env.GREENINVOICE_ID
 const GREENINVOICE_SECRET = process.env.GREENINVOICE_SECRET
 
@@ -33,28 +34,41 @@ export async function getToken() {
 
   console.log('[GreenInvoice Token] Requesting new token...')
 
-  const res = await fetch(`${BASE_URL}/account/token`, {
+  // Старый POST /api/v1/account/token удалён (404 с пустым телом, с 17.10.2026
+  // выписка кабалот молча падала). Актуальная авторизация — OAuth2
+  // client_credentials, developers.morning.co/docs/openapi.bundled.json,
+  // POST /idp/v1/oauth/token (сервер https://api.morning.co); ответ
+  // { accessToken, tokenType, expiresAt (unix, сек) }, токен живёт 1 час.
+  // Остальные эндпоинты остаются на BASE_URL.
+  const res = await fetch(TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      id: GREENINVOICE_ID,
-      secret: GREENINVOICE_SECRET
+      grant_type: 'client_credentials',
+      client_id: GREENINVOICE_ID,
+      client_secret: GREENINVOICE_SECRET
     })
   })
 
   console.log('[GreenInvoice Token] Response status:', res.status)
 
-  const data = await res.json()
+  // Тело читаем как текст: пустой ответ (как у удалённого эндпоинта) должен
+  // давать понятную ошибку со статусом, а не «Unexpected end of JSON input».
+  const text = await res.text()
+  let data = {}
+  try { data = JSON.parse(text) } catch {}
 
-  console.log('[GreenInvoice Token] token received:', !!data.token)
+  console.log('[GreenInvoice Token] token received:', !!data.accessToken)
 
-  if (!data.token) {
-    throw new Error(`GreenInvoice auth failed: ${JSON.stringify(data)}`)
+  if (!data.accessToken) {
+    throw new Error(`GreenInvoice auth failed: HTTP ${res.status} ${text.slice(0, 200)}`)
   }
 
-  cachedToken = data.token
-  // обновляем за 5 минут до истечения (токен живёт ~30 мин)
-  tokenExpiresAt = Date.now() + 25 * 60 * 1000
+  cachedToken = data.accessToken
+  // обновляем за 5 минут до истечения (токен живёт 1 час)
+  tokenExpiresAt = data.expiresAt
+    ? data.expiresAt * 1000 - 5 * 60 * 1000
+    : Date.now() + 55 * 60 * 1000
 
   return cachedToken
 }
