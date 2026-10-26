@@ -26,6 +26,7 @@ import { scanGroupMembers } from './utils/group-scanner.js'
 import { startScheduler, hasActiveWebinarAccess, forceSendPending } from './utils/scheduler.js'
 import { getTariffs, getClubMembers, getClubMember, createClubMember, getClubMemberRecord, setMemberAdminFlag, updateClubMemberFields, getMessages, CLUB_FIELD_EMAIL, CLUB_FIELD_TELEGRAM_ID, CLUB_FIELD_TARIFF } from './integrations/fillout.js'
 import { isWebhookProcessed, markWebhookProcessed } from './utils/webhookDedup.js'
+import { detectTestPayment } from './utils/testPayment.js'
 import { createReceipt, extractReceiptUrl, extractReceiptNumber } from './integrations/greeninvoice.js'
 import { toIsoDate, processTariffPayment } from './utils/tariffPayment.js'
 
@@ -539,7 +540,10 @@ try {
       }
 
       if (body.status === '1' && !body.order_id) {
-        try {
+        const testReason = detectTestPayment(body)
+        if (testReason) {
+          console.log(`[Webhook] тестовый платёж (${testReason}) — кабала не выписывается. ${body.client_name}, ${body.amount}₪`)
+        } else try {
           const receipt = await createReceipt({
             clientName: body.client_name || '',
             clientEmail: body.client_email || '',

@@ -10,6 +10,7 @@ import {
   updateLeadFields,
 } from '../integrations/bitrix.js'
 import { createReceipt, extractReceiptUrl, extractReceiptNumber } from '../integrations/greeninvoice.js'
+import { detectTestPayment } from './testPayment.js'
 
 // Живёт отдельно от index.js, чтобы payment.scene.js могло вызвать
 // processTariffPayment напрямую (100%-скидка купоном, минуя AllPay) без
@@ -85,7 +86,10 @@ export async function processTariffPayment(bot, body) {
 
     // Купон на 100% даёт нулевую сумму — GreenInvoice такую не примет, кабалу
     // не выписываем вовсе (это единственное отличие от обычной оплаты).
-    if (amount > 0) {
+    const testReason = detectTestPayment(body)
+    if (testReason) {
+      console.log(`[Webhook] тестовый платёж (${testReason}) — кабала не выписывается: order_id=${body.order_id}`)
+    } else if (amount > 0) {
       try {
         const receipt = await createReceipt({
           clientName: body.client_name || '',

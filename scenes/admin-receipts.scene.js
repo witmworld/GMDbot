@@ -1,5 +1,6 @@
 import { Scenes, Markup } from 'telegraf'
 import { createReceipt } from '../integrations/greeninvoice.js'
+import { detectTestPayment } from '../utils/testPayment.js'
 import XLSX from 'xlsx'
 import fetch from 'node-fetch'
 
@@ -58,7 +59,13 @@ adminReceiptsScene.on('document', async (ctx) => {
 
     const successful = rows.filter(r => String(r.status).toLowerCase() === 'successful')
     const withReceipt = rows.filter(r => r.receipt && r.receipt !== 'not issued')
-    const withoutReceipt = successful.filter(r => !r.receipt || r.receipt === 'not issued')
+    const withoutReceiptAll = successful.filter(r => !r.receipt || r.receipt === 'not issued')
+    // Тестовые платежи (слово «тест» в имени/позиции/e-mail) — без кабалы.
+    const testRows = withoutReceiptAll.filter(r => detectTestPayment({
+      name: r.items, client_name: r.client_name, client_email: r.client_email
+    }))
+    const withoutReceipt = withoutReceiptAll.filter(r => !testRows.includes(r))
+    testRows.forEach(r => console.log('[Admin Receipts] Пропуск тестового платежа:', r.id, r.client_name, r.client_email))
 
     console.log('[Admin Receipts] Successful:', successful.length)
     console.log('[Admin Receipts] With receipt:', withReceipt.length)
@@ -74,7 +81,8 @@ adminReceiptsScene.on('document', async (ctx) => {
       `Всего транзакций: ${rows.length}\n` +
       `Успешных: ${successful.length}\n` +
       `С квитанциями: ${withReceipt.length}\n` +
-      `БЕЗ квитанций: ${withoutReceipt.length}\n\n` +
+      `БЕЗ квитанций: ${withoutReceipt.length}\n` +
+      `Пропущено как тестовые: ${testRows.length}\n\n` +
       `⚠️ Создам *${withoutReceipt.length}* новых квитанций\n\n` +
       `Продолжить?`,
       {
