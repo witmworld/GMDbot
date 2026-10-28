@@ -18,6 +18,15 @@ export function extractReceiptNumber(receipt) {
   return receipt?.number ?? ''
 }
 
+// Клиенты вводят e-mail в AllPay с пробелами ('bubudenka@ gmail. com') —
+// GreenInvoice отвечает на такой адрес ошибкой 1102 «מייל לא תקין» и кабала
+// не выписывается. Убираем пробелы; если адрес всё равно невалиден —
+// выписываем без e-mail, чтобы платёж не остался без документа.
+export function normalizeEmail(email) {
+  const cleaned = String(email || '').replace(/\s+/g, '')
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(cleaned) ? cleaned : ''
+}
+
 const BASE_URL = 'https://api.greeninvoice.co.il/api/v1'
 const TOKEN_URL = 'https://api.morning.co/idp/v1/oauth/token'
 const GREENINVOICE_ID = process.env.GREENINVOICE_ID
@@ -117,7 +126,7 @@ export async function createReceipt({ clientName, clientEmail, clientPhone, amou
       remarks: orderId ? `ORDER_ID: ${orderId}` : '',
       client: {
         name: clientName || '',
-        emails: clientEmail ? [clientEmail] : [],
+        emails: normalizeEmail(clientEmail) ? [normalizeEmail(clientEmail)] : [],
         phones: { mobile: clientPhone || '' }
       },
       income,
