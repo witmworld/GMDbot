@@ -146,7 +146,8 @@ adminReceiptsScene.action('receipts:confirm', async (ctx) => {
     await ctx.reply(
       `✅ Готово!\n\n` +
       `Создано: ${created}\n` +
-      `Ошибок: ${errors.length}`,
+      `Ошибок: ${errors.length}` +
+      (errors.length ? `\n\n${errors.slice(0, 5).join('\n').slice(0, 1500)}` : ''),
       Markup.inlineKeyboard([
         [Markup.button.callback('⬅️ Назад', 'back:ADMIN_MENU')]
       ])

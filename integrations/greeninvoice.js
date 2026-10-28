@@ -131,10 +131,14 @@ export async function createReceipt({ clientName, clientEmail, clientPhone, amou
     })
   })
 
-  const data = await res.json()
+  const text = await res.text()
+  let data = {}
+  try { data = JSON.parse(text) } catch {}
 
-  if (data.errorCode) {
-    throw new Error(`GreenInvoice receipt failed: ${data.errorCode} — ${data.errorMessage}`)
+  // Успех — HTTP 201. Ответ 4xx бывает с errorCode: 0 и пустым сообщением,
+  // поэтому смотрим на статус, а не только на errorCode.
+  if (!res.ok || data.errorCode) {
+    throw new Error(`GreenInvoice receipt failed: HTTP ${res.status}, ${data.errorCode ?? '-'} — ${data.errorMessage || text.slice(0, 300) || 'пустой ответ'}`)
   }
 
   return data
